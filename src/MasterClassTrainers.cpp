@@ -24,8 +24,17 @@ public:
 
     bool CanPrepareGossipMenu(Player* player, WorldObject* source, uint32 menuId /*= 0*/, bool showQuests /*= false*/)
     {
-        ChatHandler(player->GetSession()).SendSysMessage("Boop");
-        return false;
+        if (Creature* creature = source->ToCreature())
+        {
+            if (const CreatureTemplate* creatureTemplate = creature->GetCreatureTemplate())
+            {
+                if (creatureTemplate->trainer_type == TRAINER_TYPE_CLASS)
+                {
+                    ChatHandler(player->GetSession()).SendSysMessage("Boop");
+                    return false;
+                }
+            }
+        }        
     }
 };
 
