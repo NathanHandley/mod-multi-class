@@ -3,9 +3,11 @@
 ###################################################################################################
 # MASTER CLASS TRAINERS CHAT API
 ###################################################################################################
+
+#
 #    MasterClassTrainers.Enable
 #        Description: Enable the module
-#        Default:     1  - (Enabled)
+#        Values:      1  - (Enabled, default)
 #                     0  - (Disabled)
 
 MasterClassTrainers.Enable = 1
