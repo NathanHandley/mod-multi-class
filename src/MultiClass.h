@@ -59,9 +59,11 @@ public:
 
     bool LoadClassTrainerData();
 
+    bool ChangeClass(ChatHandler* handler, Player* player, uint8 newClass);
+
     //bool GetIsInitialized() { return mIsInitialized; }
 };
 
-#define MultiClassTrainer MultiClassMod::instance()
+#define MultiClass MultiClassMod::instance()
 
 #endif //MASTER_CLASS_TRAINERS_H

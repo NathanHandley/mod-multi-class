@@ -105,6 +105,52 @@ bool MultiClassMod::LoadClassTrainerData()
     return true;
 }
 
+bool MultiClassMod::ChangeClass(ChatHandler* handler, Player* player, uint8 newClass)
+{
+    //uint32 curRaceClassgender = player->GetUInt32Value(UNIT_FIELD_BYTES_0);
+    //player->SetUInt32Value(UNIT_FIELD_BYTES_0, (curRaceClassgender | (newClass << 8)));
+    //uint32 RaceClassGender = (RACE_HUMAN) | (newClass << 8) | (GENDER_FEMALE << 16);
+    //player->SetUInt32Value(UNIT_FIELD_BYTES_0, RaceClassGender);
+
+   /* uint8 curRace = player->getRace();
+    uint8 curGender = player->getGender();
+    uint32 RaceClassGender = curRace | (newClass << 8) | (curGender << 16);
+    player->SetUInt32Value(UNIT_FIELD_BYTES_0, RaceClassGender);*/
+
+ //   player->SaveToDB(false, false);
+
+    
+//    QueryResult queryResult = CharacterDatabase.Query("SELECT 'nextclass' FROM `mod_multi_class_next_switch_class` WHERE 'guid' = {}", player->GetGUID().GetCounter());
+//    if (queryResult && queryResult->GetRowCount() > 0)
+    // Delete the switch row if it's already there
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_next_switch_class` WHERE `guid` = {}", player->GetGUID().GetCounter());
+
+    // Don't do anything if we're already that class
+    if (newClass == player->getClass())
+    {
+        handler->PSendSysMessage("Class change requested is the current class, so taking no action on the next login.");
+        return true;
+    }
+
+    // Add the switch event
+    CharacterDatabase.Execute("INSERT INTO `mod_multi_class_next_switch_class` (`guid`, `nextclass`) VALUES ({}, {})", player->GetGUID().GetCounter(), newClass);
+    switch (newClass)
+    {
+    case CLASS_WARRIOR: handler->PSendSysMessage("You will become a Warrior on the next login"); break;
+    case CLASS_PALADIN: handler->PSendSysMessage("You will become a Paladin on the next login"); break;
+    case CLASS_HUNTER: handler->PSendSysMessage("You will become a Hunter on the next login"); break;
+    case CLASS_ROGUE: handler->PSendSysMessage("You will become a Rogue on the next login"); break;
+    case CLASS_PRIEST: handler->PSendSysMessage("You will become a Priest on the next login"); break;
+    case CLASS_DEATH_KNIGHT: handler->PSendSysMessage("You will become a Death Knight on the next login"); break;
+    case CLASS_SHAMAN: handler->PSendSysMessage("You will become a Shaman on the next login"); break;
+    case CLASS_MAGE: handler->PSendSysMessage("You will become a Mage on the next login"); break;
+    case CLASS_WARLOCK: handler->PSendSysMessage("You will become a Warlock on the next login"); break;
+    case CLASS_DRUID: handler->PSendSysMessage("You will become a Druid on the next login"); break;
+    default: break;
+    }
+    return true;
+}
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -118,7 +164,7 @@ public:
 	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00Multi Class |rmodule.");
     }
 
-    bool OnPrepareGossipMenu(Player* player, WorldObject* source, uint32 menuId /*= 0*/, bool showQuests /*= false*/)
+    //bool OnPrepareGossipMenu(Player* player, WorldObject* source, uint32 menuId /*= 0*/, bool showQuests /*= false*/)
     //{
     //    if (ConfigEnabled == false)
     //        return true;
@@ -204,11 +250,52 @@ public:
         if (!*args)
         {
             handler->PSendSysMessage(".multiclass changeclass 'class'");
-            handler->PSendSysMessage("Changes the player class.  Example: '.multiclass changeclass warrior'");
-            return false;
+            handler->PSendSysMessage("Changes the player class on next logout.  Example: '.multiclass changeclass warrior'");
+            handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, deathknight, shaman, mage warlock, druid");
+            return true;
         }
 
-        handler->PSendSysMessage("Boopie");
+        uint8 classInt = CLASS_NONE;
+        std::string className = strtok((char*)args, " ");
+        if (className.starts_with("Warr") || className.starts_with("warr") || className.starts_with("WARR"))
+            classInt = CLASS_WARRIOR;
+        else if (className.starts_with("Pa") || className.starts_with("pa") || className.starts_with("PA"))
+            classInt = CLASS_PALADIN;
+        else if (className.starts_with("H") || className.starts_with("h"))
+            classInt = CLASS_HUNTER;
+        else if (className.starts_with("R") || className.starts_with("r"))
+            classInt = CLASS_ROGUE;
+        else if (className.starts_with("Pr") || className.starts_with("pr") || className.starts_with("PR"))
+            classInt = CLASS_PRIEST;
+        else if (className.starts_with("De") || className.starts_with("de") || className.starts_with("DE"))
+            classInt = CLASS_DEATH_KNIGHT;
+        else if (className.starts_with("S") || className.starts_with("s"))
+            classInt = CLASS_SHAMAN;
+        else if (className.starts_with("M") || className.starts_with("m"))
+            classInt = CLASS_MAGE;
+        else if (className.starts_with("Warl") || className.starts_with("warl") || className.starts_with("WARL"))
+            classInt = CLASS_WARLOCK;
+        else if (className.starts_with("Dr") || className.starts_with("dr") || className.starts_with("DR"))
+            classInt = CLASS_DRUID;
+        else
+        {
+            handler->PSendSysMessage(".multiclass changeclass 'class'");
+            handler->PSendSysMessage("Changes the player class.  Example: '.multiclass changeclass warrior'");
+            handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, deathknight, shaman, mage warlock, druid");
+            std::string enteredValueLine = "Entered Value was ";
+            enteredValueLine.append(className);
+            handler->PSendSysMessage(enteredValueLine.c_str());
+            return true;
+        }        
+
+        Player* player = handler->GetPlayer();
+        if (!MultiClass->ChangeClass(handler, player, classInt))
+        {
+            LOG_ERROR("module", "multiclass: Could not change class to {}", classInt);
+            handler->PSendSysMessage("ERROR CHANGING CLASS");
+        }
+
+        return true;
     }
 };
 
