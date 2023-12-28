@@ -86,7 +86,7 @@ CREATE TABLE `mod_multi_class_character_action` (
 	INDEX `idx_guidclass` (`guid`, `class`) USING BTREE
 )
 
-DROP TABLE IF EXISTS `mod_multi_class_character_action`;
+DROP TABLE IF EXISTS `mod_multi_class_character_glyphs`;
 CREATE TABLE `mod_multi_class_character_glyphs` (
 	`guid` INT(10) UNSIGNED NOT NULL,
 	`class` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
