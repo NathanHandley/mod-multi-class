@@ -19,8 +19,35 @@
 #ifndef MASTER_CLASS_TRAINERS_H
 #define MASTER_CLASS_TRAINERS_H
 
+#include "Common.h"
+
+#include <list>
+#include <map>
+
+struct MasterClassTrainerClassData
+{
+    uint32 SpellID;
+    std::string SpellName;
+    std::string SpellSubText;
+    uint32 ReqSpellID;
+    uint32 ReqSkillLine;
+    uint16 ReqSkillRank;
+    uint16 ReqLevel;
+    bool AllowHorde;
+    bool AllowAlliance;
+    uint32 DefaultCost;
+    uint32 ModifiedCost;
+    bool IsTalent;
+};
+
 class MasterClassTrainersMod
 {
+private:
+    MasterClassTrainersMod();
+
+    //bool mIsInitialized;
+    std::map<uint16, std::list<MasterClassTrainerClassData>> ClassTrainerDataByClass;
+
 public:
     static MasterClassTrainersMod* instance()
     {
@@ -29,6 +56,12 @@ public:
     }
 
     ~MasterClassTrainersMod();
+
+    bool LoadClassTrainerData();
+
+    //bool GetIsInitialized() { return mIsInitialized; }
 };
+
+#define MasterClassTrainer MasterClassTrainersMod::instance()
 
 #endif //MASTER_CLASS_TRAINERS_H

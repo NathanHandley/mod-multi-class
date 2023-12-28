@@ -1,3 +1,4 @@
+
 /*
 ** Made by Nathan Handley https://github.com/NathanHandley
 ** AzerothCore 2019 http://www.azerothcore.org/
@@ -30,7 +31,7 @@ using namespace std;
 
 static bool ConfigEnabled;
 
-MasterClassTrainersMod::MasterClassTrainersMod()
+MasterClassTrainersMod::MasterClassTrainersMod() //: mIsInitialized(false)
 {
 
 }
@@ -38,6 +39,70 @@ MasterClassTrainersMod::MasterClassTrainersMod()
 MasterClassTrainersMod::~MasterClassTrainersMod()
 {
 
+}
+
+// (Re)populates the master class trainer data
+bool MasterClassTrainersMod::LoadClassTrainerData()
+{
+    // Clear old
+    ClassTrainerDataByClass.clear();
+
+    // Pull in all the new data
+    QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqSkillLine`, `ReqSkillRank`, `ReqLevel`, `Class`, `Side`, `DefaultCost`, `IsTalent` FROM mod_master_class_trainers_abilities ORDER BY `Class`, `SpellID`");
+    if (!queryResult)
+    {
+        LOG_ERROR("module", "MasterClassTrainers: Error pulling class trainer data from the database.  Does the 'mod_master_class_trainers_abilities' table exist in the world database?");
+        return false;
+    }
+    do
+    {
+        // Pull the data out
+        Field* fields = queryResult->Fetch();
+        MasterClassTrainerClassData curClassData;
+        curClassData.SpellID = fields[0].Get<uint32>();
+        curClassData.SpellName = fields[1].Get<std::string>();
+        curClassData.SpellSubText = fields[2].Get<std::string>();
+        curClassData.ReqSpellID = fields[3].Get<uint32>();
+        curClassData.ReqSkillLine = fields[4].Get<uint32>();
+        curClassData.ReqSkillRank = fields[5].Get<uint16>();
+        curClassData.ReqLevel = fields[6].Get<uint16>();
+        uint16 curClass = fields[7].Get<uint16>();
+        std:string curFactionAllowed = fields[8].Get<std::string>();
+        curClassData.DefaultCost = fields[9].Get<uint32>();
+        curClassData.IsTalent = fields[10].Get<uint32>();
+
+        // TODO Calculate a modified cost
+        curClassData.ModifiedCost = curClassData.DefaultCost;
+
+        // Determine the faction
+        if (curFactionAllowed == "ALLIANCE" || curFactionAllowed == "Alliance" || curFactionAllowed == "alliance")
+        {
+            curClassData.AllowAlliance = true;
+            curClassData.AllowHorde = false;
+        }
+        else if (curFactionAllowed == "HORDE" || curFactionAllowed == "Horde" || curFactionAllowed == "horde")
+        {
+            curClassData.AllowAlliance = false;
+            curClassData.AllowHorde = true;
+        }
+        else if (curFactionAllowed == "BOTH" || curFactionAllowed == "Both" || curFactionAllowed == "both")
+        {
+            curClassData.AllowAlliance = true;
+            curClassData.AllowHorde = true;
+        }
+        else
+        {
+            LOG_ERROR("module", "MasterClassTrainers: Could not interpret the race, value passed was {}", curClass);
+            curClassData.AllowAlliance = false;
+            curClassData.AllowHorde = false;
+        }
+
+        // Add to the appropriate class trainer list
+        // TODO: Is this needed?
+        if (ClassTrainerDataByClass.find(curClass) == ClassTrainerDataByClass.end())
+            ClassTrainerDataByClass[curClass] = std::list<MasterClassTrainerClassData>();
+    } while (queryResult->NextRow());
+    return true;
 }
 
 class MasterClassTrainers_PlayerScript : public PlayerScript
@@ -65,7 +130,11 @@ public:
                 if (creatureTemplate->trainer_type == TRAINER_TYPE_CLASS)
                 {
                     ChatHandler(player->GetSession()).SendSysMessage("Boop");
-                    return false;
+                    //return false;
+                    if (MasterClassTrainer->LoadClassTrainerData() == true)
+                    {
+                        ChatHandler(player->GetSession()).SendSysMessage("Bop");
+                    }
                 }
             }
         }
@@ -111,9 +180,42 @@ public:
 //    }
 //};
 
+class MasterClass_CommandScript : public CommandScript
+{
+public:
+    MasterClass_CommandScript() : CommandScript("MasterClass_CommandScript") { }
+
+    std::vector<ChatCommand> GetCommands() const
+    {
+        static std::vector<ChatCommand> ABCommandTable =
+        {
+            { "changeclass",        SEC_PLAYER,                            true, &HandleMasterClassChangeClass,              "Changes a class to the passed class" },
+        };
+
+        static std::vector<ChatCommand> commandTable =
+        {
+            { "masterclass",       SEC_PLAYER,                             false, NULL,                      "", ABCommandTable },
+        };
+        return commandTable;
+    }
+
+    static bool HandleMasterClassChangeClass(ChatHandler* handler, const char* args)
+    {
+        if (!*args)
+        {
+            handler->PSendSysMessage(".masterclass changeclass 'class'");
+            handler->PSendSysMessage("Changes the player class.  Example: '.masterclass changeclass warrior'");
+            return false;
+        }
+
+        handler->PSendSysMessage("Boopie");
+    }
+};
+
 void AddMasterClassTrainerScripts()
 {
     new MasterClassTrainers_PlayerScript();
     new MasterClassTrainers_WorldScript();
     //new MasterClassTrainers_CommandScript();
+    new MasterClass_CommandScript();
 }
