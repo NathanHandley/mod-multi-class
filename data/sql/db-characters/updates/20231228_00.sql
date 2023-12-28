@@ -85,3 +85,18 @@ CREATE TABLE `mod_multi_class_character_action` (
 	PRIMARY KEY (`guid`, `class`, `spec`, `button`) USING BTREE,
 	INDEX `idx_guidclass` (`guid`, `class`) USING BTREE
 )
+
+DROP TABLE IF EXISTS `mod_multi_class_character_action`;
+CREATE TABLE `mod_multi_class_character_glyphs` (
+	`guid` INT(10) UNSIGNED NOT NULL,
+	`class` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
+	`talentGroup` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
+	`glyph1` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
+	`glyph2` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
+	`glyph3` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
+	`glyph4` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
+	`glyph5` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
+	`glyph6` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
+	PRIMARY KEY (`guid`, `class`, `talentGroup`) USING BTREE,
+	INDEX `idx_guidclass` (`guid`, `class`) USING BTREE
+)
