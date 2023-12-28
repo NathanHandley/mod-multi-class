@@ -209,6 +209,10 @@ bool MultiClassMod::SavePlayerCurrentClassData(Player* player)
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
     CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT {}, {}, skill, value, max FROM character_skills WHERE GUID = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
 
+    // Action Bar Data
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_action` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT {}, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
+
     // Base Character Data
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_characters` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
     CharacterDatabase.Execute("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, restState, leveltime, rest_bonus, resettalents_cost, resettalents_time, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, restState, leveltime, rest_bonus, resettalents_cost, resettalents_time, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
@@ -218,10 +222,22 @@ bool MultiClassMod::SavePlayerCurrentClassData(Player* player)
 
 bool MultiClassMod::ChangeActivePlayerClass(Player* player, uint8 newClass)
 {
+    // Get the class data
+    QueryResult classDataQueryResult = CharacterDatabase.Query("SELECT `level`, `xp`, `restState`, `leveltime`, `rest_bonus`, `resettalents_cost`, `resettalents_time`, `talentGroupsCount`, `activeTalentGroup` FROM `mod_multi_class_characters` WHERE `guid` = {} AND `class` = {}", player->GetGUID().GetCounter(), newClass);
+
     // If the class is a new class, then create new class data
+    if (!classDataQueryResult || classDataQueryResult->GetRowCount() == 0)
+    {
+        
+    }
 
     // If the class data is a saved class, then replace current class data with saved class data
-        // Delete the old copy of the saved class data
+    // TODO:
+
+
+
+
+    // TODO: Delete the old copy of the saved class data
 
     return true;
 }
