@@ -78,7 +78,6 @@ bool MultiClassMod::LoadClassAbilityData()
         if (curClassData.IsLearnedByTalent && curClassData.DefaultReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
         {
             curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.DefaultReqLevel - 10) * talentRateMod) + CrossClassAbilityLevelGap + 10;
-            LOG_ERROR("module", "multiclass: {} {} {} {}", curClassData.SpellName, curClassData.SpellSubText, curClassData.DefaultReqLevel, curClassData.ModifiedReqLevel);
         }
         else
             curClassData.ModifiedReqLevel = curClassData.DefaultReqLevel + CrossClassAbilityLevelGap;
@@ -192,7 +191,27 @@ bool MultiClassMod::PerformAnyQueuedClassSwitch(Player* player)
 
 bool MultiClassMod::SavePlayerCurrentClassData(Player* player)
 {
+    uint8 curClass = player->getClass();
 
+    // Talent data
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT {}, {}, spell, specMask FROM character_talent WHERE guid = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
+
+    // Aura Data
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_aura` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT {}, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
+
+    // Spell Data
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_spell` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT {}, {}, spell, specMask FROM character_spell WHERE GUID = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
+
+    // Skill Data
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT {}, {}, skill, value, max FROM character_skills WHERE GUID = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
+
+    // Base Character Data
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_characters` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), curClass);
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, restState, leveltime, rest_bonus, resettalents_cost, resettalents_time, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, restState, leveltime, rest_bonus, resettalents_cost, resettalents_time, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), curClass, player->GetGUID().GetCounter());
 
     return true;
 }
