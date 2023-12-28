@@ -1,15 +1,15 @@
 [worldserver]
 
 ###################################################################################################
-# MASTER CLASS TRAINERS CHAT API
+# MULTI CLASS
 ###################################################################################################
 
 #
-#    MasterClassTrainers.Enable
+#    MultiClass.Enable
 #        Description: Enable the module
 #        Values:      1  - (Enabled, default)
 #                     0  - (Disabled)
 
-MasterClassTrainers.Enable = 1
+MultiClass.Enable = 1
 
 ###################################################################################################
