@@ -24,20 +24,17 @@
 #include <list>
 #include <map>
 
-struct MultiClassTrainerClassData
+struct MultiClassSpells
 {
     uint32 SpellID;
     std::string SpellName;
     std::string SpellSubText;
-    uint32 ReqSpellID;
-    uint32 ReqSkillLine;
-    uint16 ReqSkillRank;
-    uint16 ReqLevel;
+    uint16 DefaultReqLevel;
+    uint16 ModifiedReqLevel;
     bool AllowHorde;
     bool AllowAlliance;
-    uint32 DefaultCost;
-    uint32 ModifiedCost;
     bool IsTalent;
+    bool IsLearnedByTalent;
 };
 
 class MultiClassMod
@@ -46,7 +43,7 @@ private:
     MultiClassMod();
 
     //bool mIsInitialized;
-    std::map<uint16, std::list<MultiClassTrainerClassData>> ClassTrainerDataByClass;
+    std::map<uint16, std::list<MultiClassSpells>> ClassSpellsByClass;
 
 public:
     static MultiClassMod* instance()
@@ -57,14 +54,14 @@ public:
 
     ~MultiClassMod();
 
-    bool LoadClassTrainerData();
+    bool LoadClassAbilityData();
 
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
     bool PerformAnyQueuedClassSwitch(Player* player);
 
 private:
     bool SavePlayerCurrentClassData(Player* player);
-    bool SetNewPlayerClass(Player* player, uint8 newClass);
+    bool ChangeActivePlayerClass(Player* player, uint8 newClass);
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
 
     //bool GetIsInitialized() { return mIsInitialized; }

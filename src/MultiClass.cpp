@@ -29,7 +29,8 @@
 using namespace Acore::ChatCommands;
 using namespace std;
 
-static bool ConfigEnabled;
+static bool ConfigEnabled = true;
+static uint8 CrossClassAbilityLevelGap = 10; // TODO: Load from config
 
 MultiClassMod::MultiClassMod() //: mIsInitialized(false)
 {
@@ -41,38 +42,46 @@ MultiClassMod::~MultiClassMod()
 
 }
 
-// (Re)populates the master class trainer data
-bool MultiClassMod::LoadClassTrainerData()
+// (Re)populates the ability data for the classes
+bool MultiClassMod::LoadClassAbilityData()
 {
     // Clear old
-    ClassTrainerDataByClass.clear();
+    ClassSpellsByClass.clear();
+
+    // Cache the mod for talent level calculations
+    float talentRateMod = 1.0f;
+    if (sWorld->getRate(RATE_TALENT) > 1.0f)
+        talentRateMod = 1.0f / sWorld->getRate(RATE_TALENT);
 
     // Pull in all the new data
-    QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqSkillLine`, `ReqSkillRank`, `ReqLevel`, `Class`, `Side`, `DefaultCost`, `IsTalent` FROM mod_master_class_trainers_abilities ORDER BY `Class`, `SpellID`");
+    QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `DefaultReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent` FROM mod_multi_class_spells ORDER BY `Class`, `SpellID`");
     if (!queryResult)
     {
-        LOG_ERROR("module", "multiclass: Error pulling class trainer data from the database.  Does the 'mod_master_class_trainers_abilities' table exist in the world database?");
+        LOG_ERROR("module", "multiclass: Error pulling class spell data from the database.  Does the 'mod_multi_class_spells' table exist in the world database and is populated?");
         return false;
     }
     do
     {
         // Pull the data out
         Field* fields = queryResult->Fetch();
-        MultiClassTrainerClassData curClassData;
+        MultiClassSpells curClassData;
         curClassData.SpellID = fields[0].Get<uint32>();
         curClassData.SpellName = fields[1].Get<std::string>();
         curClassData.SpellSubText = fields[2].Get<std::string>();
-        curClassData.ReqSpellID = fields[3].Get<uint32>();
-        curClassData.ReqSkillLine = fields[4].Get<uint32>();
-        curClassData.ReqSkillRank = fields[5].Get<uint16>();
-        curClassData.ReqLevel = fields[6].Get<uint16>();
-        uint16 curClass = fields[7].Get<uint16>();
-        std:string curFactionAllowed = fields[8].Get<std::string>();
-        curClassData.DefaultCost = fields[9].Get<uint32>();
-        curClassData.IsTalent = fields[10].Get<uint32>();
+        curClassData.DefaultReqLevel = fields[3].Get<uint16>();
+        uint16 curClass = fields[4].Get<uint16>();
+        std:string curFactionAllowed = fields[5].Get<std::string>();
+        curClassData.IsTalent = fields[6].Get<bool>();
+        curClassData.IsLearnedByTalent = fields[7].Get<bool>();
 
-        // TODO Calculate a modified cost
-        curClassData.ModifiedCost = curClassData.DefaultCost;
+        // Calculate the level gap for knowing a spell cross-class
+        if (curClassData.IsLearnedByTalent && curClassData.DefaultReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
+        {
+            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.DefaultReqLevel - 10) * talentRateMod) + CrossClassAbilityLevelGap + 10;
+            LOG_ERROR("module", "multiclass: {} {} {} {}", curClassData.SpellName, curClassData.SpellSubText, curClassData.DefaultReqLevel, curClassData.ModifiedReqLevel);
+        }
+        else
+            curClassData.ModifiedReqLevel = curClassData.DefaultReqLevel + CrossClassAbilityLevelGap;
 
         // Determine the faction
         if (curFactionAllowed == "ALLIANCE" || curFactionAllowed == "Alliance" || curFactionAllowed == "alliance")
@@ -99,8 +108,9 @@ bool MultiClassMod::LoadClassTrainerData()
 
         // Add to the appropriate class trainer list
         // TODO: Is this needed?
-        if (ClassTrainerDataByClass.find(curClass) == ClassTrainerDataByClass.end())
-            ClassTrainerDataByClass[curClass] = std::list<MultiClassTrainerClassData>();
+        ///if (ClassTrainerDataByClass.find(curClass) == ClassTrainerDataByClass.end())
+        //ClassTrainerDataByClass[curClass] = std::list<MultiClassTrainerClassData>();
+        ClassSpellsByClass[curClass].push_back(curClassData);
     } while (queryResult->NextRow());
     return true;
 }
@@ -171,7 +181,7 @@ bool MultiClassMod::PerformAnyQueuedClassSwitch(Player* player)
     }
 
     // Set to the new class
-    if (!SetNewPlayerClass(player, nextClass))
+    if (!ChangeActivePlayerClass(player, nextClass))
     {
         LOG_ERROR("module", "multiclass: Could not set the new class of {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
         return false;
@@ -183,18 +193,25 @@ bool MultiClassMod::PerformAnyQueuedClassSwitch(Player* player)
 bool MultiClassMod::SavePlayerCurrentClassData(Player* player)
 {
 
+
     return true;
 }
 
-bool MultiClassMod::SetNewPlayerClass(Player* player, uint8 newClass)
+bool MultiClassMod::ChangeActivePlayerClass(Player* player, uint8 newClass)
 {
+    // If the class is a new class, then create new class data
+
+    // If the class data is a saved class, then replace current class data with saved class data
+        // Delete the old copy of the saved class data
 
     return true;
 }
 
 bool MultiClassMod::DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass)
 {
-
+    QueryResult queryResult = CharacterDatabase.Query("SELECT guid, class FROM mod_multi_class_characters WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), lookupClass);
+    if (!queryResult || queryResult->GetRowCount() == 0)
+        return false;
     return true;
 }
 
@@ -228,6 +245,10 @@ public:
     void OnAfterConfigLoad(bool /*reload*/) override
     {
         ConfigEnabled = sConfigMgr->GetOption<bool>("MultiClass.Enable", true);
+        if (!MultiClass->LoadClassAbilityData())
+        {
+            LOG_ERROR("module", "multiclass: Could not load the class ability data after the config load");
+        }
     }
 };
 
