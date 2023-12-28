@@ -105,7 +105,7 @@ bool MultiClassMod::LoadClassTrainerData()
     return true;
 }
 
-bool MultiClassMod::ChangeClass(ChatHandler* handler, Player* player, uint8 newClass)
+bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass)
 {
     //uint32 curRaceClassgender = player->GetUInt32Value(UNIT_FIELD_BYTES_0);
     //player->SetUInt32Value(UNIT_FIELD_BYTES_0, (curRaceClassgender | (newClass << 8)));
@@ -123,7 +123,7 @@ bool MultiClassMod::ChangeClass(ChatHandler* handler, Player* player, uint8 newC
 //    QueryResult queryResult = CharacterDatabase.Query("SELECT 'nextclass' FROM `mod_multi_class_next_switch_class` WHERE 'guid' = {}", player->GetGUID().GetCounter());
 //    if (queryResult && queryResult->GetRowCount() > 0)
     // Delete the switch row if it's already there
-    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_next_switch_class` WHERE `guid` = {}", player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
 
     // Don't do anything if we're already that class
     if (newClass == player->getClass())
@@ -133,7 +133,7 @@ bool MultiClassMod::ChangeClass(ChatHandler* handler, Player* player, uint8 newC
     }
 
     // Add the switch event
-    CharacterDatabase.Execute("INSERT INTO `mod_multi_class_next_switch_class` (`guid`, `nextclass`) VALUES ({}, {})", player->GetGUID().GetCounter(), newClass);
+    CharacterDatabase.Execute("INSERT INTO `mod_multi_class_next_switch_class` (guid, nextclass) VALUES ({}, {})", player->GetGUID().GetCounter(), newClass);
     switch (newClass)
     {
     case CLASS_WARRIOR: handler->PSendSysMessage("You will become a Warrior on the next login"); break;
@@ -151,6 +151,53 @@ bool MultiClassMod::ChangeClass(ChatHandler* handler, Player* player, uint8 newC
     return true;
 }
 
+bool MultiClassMod::PerformAnyQueuedClassSwitch(Player* player)
+{
+    // Only take action if there's a class to switch to
+    QueryResult queryResult = CharacterDatabase.Query("SELECT nextclass FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
+    if (!queryResult || queryResult->GetRowCount() == 0)
+        return true;
+    Field* fields = queryResult->Fetch();
+    uint8 nextClass = fields[0].Get<uint8>();
+    CharacterDatabase.Execute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
+    if (nextClass == player->getClass())
+        return true;
+
+    // Save old class values
+    if (!SavePlayerCurrentClassData(player))
+    {
+        LOG_ERROR("module", "multiclass: Could not successfuly save the current player class data for class {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
+        return false;
+    }
+
+    // Set to the new class
+    if (!SetNewPlayerClass(player, nextClass))
+    {
+        LOG_ERROR("module", "multiclass: Could not set the new class of {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
+        return false;
+    }
+
+    return true;
+}
+
+bool MultiClassMod::SavePlayerCurrentClassData(Player* player)
+{
+
+    return true;
+}
+
+bool MultiClassMod::SetNewPlayerClass(Player* player, uint8 newClass)
+{
+
+    return true;
+}
+
+bool MultiClassMod::DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass)
+{
+
+    return true;
+}
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -164,28 +211,13 @@ public:
 	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00Multi Class |rmodule.");
     }
 
-    //bool OnPrepareGossipMenu(Player* player, WorldObject* source, uint32 menuId /*= 0*/, bool showQuests /*= false*/)
-    //{
-    //    if (ConfigEnabled == false)
-    //        return true;
-
-    //    if (Creature* creature = source->ToCreature())
-    //    {
-    //        if (const CreatureTemplate* creatureTemplate = creature->GetCreatureTemplate())
-    //        {
-    //            if (creatureTemplate->trainer_type == TRAINER_TYPE_CLASS)
-    //            {
-    //                ChatHandler(player->GetSession()).SendSysMessage("Boop");
-    //                //return false;
-    //                if (MultiClassTrainer->LoadClassTrainerData() == true)
-    //                {
-    //                    ChatHandler(player->GetSession()).SendSysMessage("Bop");
-    //                }
-    //            }
-    //        }
-    //    }
-    //    return true;
-    //}
+    void OnLogout(Player* player)
+    {
+        if (!MultiClass->PerformAnyQueuedClassSwitch(player))
+        {
+            LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+        }
+    }
 };
 
 class MultiClass_WorldScript: public WorldScript
@@ -289,7 +321,7 @@ public:
         }        
 
         Player* player = handler->GetPlayer();
-        if (!MultiClass->ChangeClass(handler, player, classInt))
+        if (!MultiClass->MarkClassChangeOnNextLogout(handler, player, classInt))
         {
             LOG_ERROR("module", "multiclass: Could not change class to {}", classInt);
             handler->PSendSysMessage("ERROR CHANGING CLASS");

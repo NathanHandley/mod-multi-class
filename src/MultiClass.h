@@ -59,7 +59,13 @@ public:
 
     bool LoadClassTrainerData();
 
-    bool ChangeClass(ChatHandler* handler, Player* player, uint8 newClass);
+    bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
+    bool PerformAnyQueuedClassSwitch(Player* player);
+
+private:
+    bool SavePlayerCurrentClassData(Player* player);
+    bool SetNewPlayerClass(Player* player, uint8 newClass);
+    bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
 
     //bool GetIsInitialized() { return mIsInitialized; }
 };
