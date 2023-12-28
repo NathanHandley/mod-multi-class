@@ -24,25 +24,25 @@
 #include "ScriptMgr.h"
 #include "World.h"
 
-#include "MasterClassTrainers.h"
+#include "MultiClass.h"
 
 using namespace Acore::ChatCommands;
 using namespace std;
 
 static bool ConfigEnabled;
 
-MasterClassTrainersMod::MasterClassTrainersMod() //: mIsInitialized(false)
+MultiClassMod::MultiClassMod() //: mIsInitialized(false)
 {
 
 }
 
-MasterClassTrainersMod::~MasterClassTrainersMod()
+MultiClassMod::~MultiClassMod()
 {
 
 }
 
 // (Re)populates the master class trainer data
-bool MasterClassTrainersMod::LoadClassTrainerData()
+bool MultiClassMod::LoadClassTrainerData()
 {
     // Clear old
     ClassTrainerDataByClass.clear();
@@ -51,14 +51,14 @@ bool MasterClassTrainersMod::LoadClassTrainerData()
     QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqSkillLine`, `ReqSkillRank`, `ReqLevel`, `Class`, `Side`, `DefaultCost`, `IsTalent` FROM mod_master_class_trainers_abilities ORDER BY `Class`, `SpellID`");
     if (!queryResult)
     {
-        LOG_ERROR("module", "MasterClassTrainers: Error pulling class trainer data from the database.  Does the 'mod_master_class_trainers_abilities' table exist in the world database?");
+        LOG_ERROR("module", "multiclass: Error pulling class trainer data from the database.  Does the 'mod_master_class_trainers_abilities' table exist in the world database?");
         return false;
     }
     do
     {
         // Pull the data out
         Field* fields = queryResult->Fetch();
-        MasterClassTrainerClassData curClassData;
+        MultiClassTrainerClassData curClassData;
         curClassData.SpellID = fields[0].Get<uint32>();
         curClassData.SpellName = fields[1].Get<std::string>();
         curClassData.SpellSubText = fields[2].Get<std::string>();
@@ -92,7 +92,7 @@ bool MasterClassTrainersMod::LoadClassTrainerData()
         }
         else
         {
-            LOG_ERROR("module", "MasterClassTrainers: Could not interpret the race, value passed was {}", curClass);
+            LOG_ERROR("module", "multiclass: Could not interpret the race, value passed was {}", curClass);
             curClassData.AllowAlliance = false;
             curClassData.AllowHorde = false;
         }
@@ -100,64 +100,64 @@ bool MasterClassTrainersMod::LoadClassTrainerData()
         // Add to the appropriate class trainer list
         // TODO: Is this needed?
         if (ClassTrainerDataByClass.find(curClass) == ClassTrainerDataByClass.end())
-            ClassTrainerDataByClass[curClass] = std::list<MasterClassTrainerClassData>();
+            ClassTrainerDataByClass[curClass] = std::list<MultiClassTrainerClassData>();
     } while (queryResult->NextRow());
     return true;
 }
 
-class MasterClassTrainers_PlayerScript : public PlayerScript
+class MultiClass_PlayerScript : public PlayerScript
 {
 public:
-    MasterClassTrainers_PlayerScript() : PlayerScript("MasterClassTrainers_PlayerScript") {}
+    MultiClass_PlayerScript() : PlayerScript("MultiClass_PlayerScript") {}
 
     void OnLogin(Player* player)
     {
         if (ConfigEnabled == false)
             return;
 
-	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00Master Class Trainer |rmodule.");
+	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00Multi Class |rmodule.");
     }
 
     bool OnPrepareGossipMenu(Player* player, WorldObject* source, uint32 menuId /*= 0*/, bool showQuests /*= false*/)
-    {
-        if (ConfigEnabled == false)
-            return true;
+    //{
+    //    if (ConfigEnabled == false)
+    //        return true;
 
-        if (Creature* creature = source->ToCreature())
-        {
-            if (const CreatureTemplate* creatureTemplate = creature->GetCreatureTemplate())
-            {
-                if (creatureTemplate->trainer_type == TRAINER_TYPE_CLASS)
-                {
-                    ChatHandler(player->GetSession()).SendSysMessage("Boop");
-                    //return false;
-                    if (MasterClassTrainer->LoadClassTrainerData() == true)
-                    {
-                        ChatHandler(player->GetSession()).SendSysMessage("Bop");
-                    }
-                }
-            }
-        }
-        return true;
-    }
+    //    if (Creature* creature = source->ToCreature())
+    //    {
+    //        if (const CreatureTemplate* creatureTemplate = creature->GetCreatureTemplate())
+    //        {
+    //            if (creatureTemplate->trainer_type == TRAINER_TYPE_CLASS)
+    //            {
+    //                ChatHandler(player->GetSession()).SendSysMessage("Boop");
+    //                //return false;
+    //                if (MultiClassTrainer->LoadClassTrainerData() == true)
+    //                {
+    //                    ChatHandler(player->GetSession()).SendSysMessage("Bop");
+    //                }
+    //            }
+    //        }
+    //    }
+    //    return true;
+    //}
 };
 
-class MasterClassTrainers_WorldScript: public WorldScript
+class MultiClass_WorldScript: public WorldScript
 {
 public:
-    MasterClassTrainers_WorldScript() : WorldScript("MasterClassTrainers_WorldScript") {}
+    MultiClass_WorldScript() : WorldScript("MultiClass_WorldScript") {}
 
     void OnAfterConfigLoad(bool /*reload*/) override
     {
-        ConfigEnabled = sConfigMgr->GetOption<bool>("MasterClassTrainers.Enable", true);
+        ConfigEnabled = sConfigMgr->GetOption<bool>("MultiClass.Enable", true);
     }
 };
 
-//class MasterClassTrainers_CommandScript : public CommandScript
+//class MultiClass_CommandScript : public CommandScript
 //{
 // TODO: Add command to 'reload from database'
 //public:
-//    MasterClassTrainers_CommandScript() : CommandScript("MasterClassTrainers_CommandScript") { }
+//    MultiClass_CommandScript() : CommandScript("MultiClass_CommandScript") { }
 //
 //    ChatCommandTable GetCommands() const override
 //    {
@@ -180,31 +180,31 @@ public:
 //    }
 //};
 
-class MasterClass_CommandScript : public CommandScript
+class MultiClass_CommandScript : public CommandScript
 {
 public:
-    MasterClass_CommandScript() : CommandScript("MasterClass_CommandScript") { }
+    MultiClass_CommandScript() : CommandScript("MultiClass_CommandScript") { }
 
     std::vector<ChatCommand> GetCommands() const
     {
         static std::vector<ChatCommand> ABCommandTable =
         {
-            { "changeclass",        SEC_PLAYER,                            true, &HandleMasterClassChangeClass,              "Changes a class to the passed class" },
+            { "changeclass",        SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes a class to the passed class" },
         };
 
         static std::vector<ChatCommand> commandTable =
         {
-            { "masterclass",       SEC_PLAYER,                             false, NULL,                      "", ABCommandTable },
+            { "multiclass",       SEC_PLAYER,                             false, NULL,                      "", ABCommandTable },
         };
         return commandTable;
     }
 
-    static bool HandleMasterClassChangeClass(ChatHandler* handler, const char* args)
+    static bool HandleMultiClassChangeClass(ChatHandler* handler, const char* args)
     {
         if (!*args)
         {
-            handler->PSendSysMessage(".masterclass changeclass 'class'");
-            handler->PSendSysMessage("Changes the player class.  Example: '.masterclass changeclass warrior'");
+            handler->PSendSysMessage(".multiclass changeclass 'class'");
+            handler->PSendSysMessage("Changes the player class.  Example: '.multiclass changeclass warrior'");
             return false;
         }
 
@@ -212,10 +212,10 @@ public:
     }
 };
 
-void AddMasterClassTrainerScripts()
+void AddMultiClassScripts()
 {
-    new MasterClassTrainers_PlayerScript();
-    new MasterClassTrainers_WorldScript();
-    //new MasterClassTrainers_CommandScript();
-    new MasterClass_CommandScript();
+    new MultiClass_PlayerScript();
+    new MultiClass_WorldScript();
+    //new MultiClass_CommandScript();
+    new MultiClass_CommandScript();
 }

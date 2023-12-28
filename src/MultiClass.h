@@ -24,7 +24,7 @@
 #include <list>
 #include <map>
 
-struct MasterClassTrainerClassData
+struct MultiClassTrainerClassData
 {
     uint32 SpellID;
     std::string SpellName;
@@ -40,28 +40,28 @@ struct MasterClassTrainerClassData
     bool IsTalent;
 };
 
-class MasterClassTrainersMod
+class MultiClassMod
 {
 private:
-    MasterClassTrainersMod();
+    MultiClassMod();
 
     //bool mIsInitialized;
-    std::map<uint16, std::list<MasterClassTrainerClassData>> ClassTrainerDataByClass;
+    std::map<uint16, std::list<MultiClassTrainerClassData>> ClassTrainerDataByClass;
 
 public:
-    static MasterClassTrainersMod* instance()
+    static MultiClassMod* instance()
     {
-        static MasterClassTrainersMod instance;
+        static MultiClassMod instance;
         return &instance;
     }
 
-    ~MasterClassTrainersMod();
+    ~MultiClassMod();
 
     bool LoadClassTrainerData();
 
     //bool GetIsInitialized() { return mIsInitialized; }
 };
 
-#define MasterClassTrainer MasterClassTrainersMod::instance()
+#define MultiClassTrainer MultiClassMod::instance()
 
 #endif //MASTER_CLASS_TRAINERS_H
