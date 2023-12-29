@@ -34,7 +34,6 @@ using namespace std;
 static bool ConfigEnabled = true;
 static uint8 ConfigCrossClassAbilityLevelGap = 10; // TODO: Load from config
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
-//static set<uint32> ConfigCrossClassSpellIDs; // TODO: Load from config
 
 MultiClassMod::MultiClassMod()
 {
@@ -245,6 +244,9 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
         sObjectMgr->GetPlayerClassLevelInfo(newClass, startLevel, &classInfo);
     }
 
+    // Get the always-include skill string
+    string alwaysIncludeSkillString = GenerateSkillIncludeString();
+
     // Set up the transaction
     CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
 
@@ -262,7 +264,7 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     transaction->Append("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {} {}", oldClass, player->GetGUID().GetCounter(), alwaysIncludeSkillString);
     transaction->Append("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
@@ -272,7 +274,7 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
     // TODO: Make the spell table be more dynamic
     transaction->Append("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_skills` WHERE guid = {} {}", player->GetGUID().GetCounter(), GenerateSkillIncludeString());
+    transaction->Append("DELETE FROM `character_skills` WHERE guid = {} {}", player->GetGUID().GetCounter(), alwaysIncludeSkillString);
     transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
