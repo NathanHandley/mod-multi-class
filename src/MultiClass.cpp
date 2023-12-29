@@ -176,9 +176,9 @@ bool MultiClassMod::PerformQueuedClassSwitch(Player* player)
     uint8 curClass = player->getClass();
 
     // Determine if this is a new class or not
-    bool isNewClass = false;
+    bool isNewClass = true;
     if (DoesSavedClassDataExistForPlayer(player, nextClass))
-        isNewClass = true;
+        isNewClass = false;
 
     // Switch the various types of data
     if (!SwitchClassCoreData(player, curClass, nextClass, isNewClass))
@@ -221,7 +221,6 @@ bool MultiClassMod::PerformQueuedClassSwitch(Player* player)
         LOG_ERROR("module", "multiclass: Could not switch equipment class data for class {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
         return false;
     }
-    // Equipment
     
     return true;
 }
@@ -238,43 +237,29 @@ bool MultiClassMod::SwitchClassCoreData(Player* player, uint8 oldClass, uint8 ne
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_characters` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
 
     // New
     if (isNew)
     {
         // Level
-        uint32 start_level = newClass != CLASS_DEATH_KNIGHT
+        uint32 startLevel = newClass != CLASS_DEATH_KNIGHT
             ? sWorld->getIntConfig(CONFIG_START_PLAYER_LEVEL)
             : sWorld->getIntConfig(CONFIG_START_HEROIC_PLAYER_LEVEL);
 
+        // For health and mana
+        PlayerClassLevelInfo classInfo;
+        sObjectMgr->GetPlayerClassLevelInfo(newClass, startLevel, &classInfo);
 
-
-        //    // Set new character level
-//    
-//    //player->SetUInt32Value(UNIT_FIELD_LEVEL, start_level);
-//
-//    // TODO: Delete glyphs
-//
-//
-//
-//    // TODO: Reset played time in level
-//
-//    // TODO: HERE
-//    // 
-//    // Commit the data
-//    //player->SaveToDB(false, false);
-
-
+        // Set the new character data
+        CharacterDatabase.Execute("UPDATE characters SET `class` = {},	`level` = {}, `xp` = 0, `leveltime` = 0, `rest_bonus` = 0, `resettalents_cost` = 0, `resettalents_time` = 0, health = {}, power1 = {}, power2 = 0, power3 = 0, power4 = 100, power5 = 0, power6 = 0, power7 = 0, `talentGroupsCount` = 1, `activeTalentGroup` = 0 WHERE guid = {}", newClass, startLevel, classInfo.basehealth, classInfo.basemana, player->GetGUID().GetCounter());
     }
     // Existing
     else
     {
-
+        // Pull the data over for this table
+        CharacterDatabase.Execute("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", newClass, player->GetGUID().GetCounter());
     }
-
-    
-    
 
     return true;
 }
@@ -357,7 +342,7 @@ bool MultiClassMod::SwitchClassActionBarData(Player* player, uint8 oldClass, uin
     // New
     if (isNew)
     {
-
+        
 
     }
     // Existing
@@ -446,7 +431,7 @@ public:
         if (ConfigEnabled == false)
             return;
 
-	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00Multi Class |rmodule.");
+	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00MultiClass |rmodule.");
     }
 
     void OnLogout(Player* player)
