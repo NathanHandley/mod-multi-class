@@ -26,11 +26,13 @@
 
 #include "MultiClass.h"
 
+#include <set>
+
 using namespace Acore::ChatCommands;
 using namespace std;
 
 static bool ConfigEnabled = true;
-static uint8 CrossClassAbilityLevelGap = 10; // TODO: Load from config
+static uint8 ConfigCrossClassAbilityLevelGap = 10; // TODO: Load from config
 
 MultiClassMod::MultiClassMod()
 {
@@ -77,10 +79,10 @@ bool MultiClassMod::LoadClassAbilityData()
         // Calculate the level gap for knowing a spell cross-class
         if (curClassData.IsLearnedByTalent && curClassData.DefaultReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
         {
-            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.DefaultReqLevel - 10) * talentRateMod) + CrossClassAbilityLevelGap + 10;
+            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.DefaultReqLevel - 10) * talentRateMod) + ConfigCrossClassAbilityLevelGap + 10;
         }
         else
-            curClassData.ModifiedReqLevel = curClassData.DefaultReqLevel + CrossClassAbilityLevelGap;
+            curClassData.ModifiedReqLevel = curClassData.DefaultReqLevel + ConfigCrossClassAbilityLevelGap;
 
         // Determine the faction
         if (curFactionAllowed == "ALLIANCE" || curFactionAllowed == "Alliance" || curFactionAllowed == "alliance")
@@ -157,16 +159,86 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
 
-    // Gather the current class
-    uint8 curClass = player->getClass();
+    uint8 oldClass = player->getClass();
+    uint8 newClass = queuedClassSwitch.classID;
+    bool isNew = queuedClassSwitch.isNew;
 
-    // Switch the various types of data
-    if (!SwitchClassDBData(player, curClass, queuedClassSwitch.classID, queuedClassSwitch.isNew))
+    // Pull needed metadata
+    uint32 startLevel;
+    PlayerClassLevelInfo classInfo;
+    if (isNew)
     {
-        LOG_ERROR("module", "multiclass: Could not switch class database data {} for player named {} with guid {}", queuedClassSwitch.classID, player->GetName(), player->GetGUID().GetCounter());
-        return false;
+        // For start level
+        startLevel = newClass != CLASS_DEATH_KNIGHT
+            ? sWorld->getIntConfig(CONFIG_START_PLAYER_LEVEL)
+            : sWorld->getIntConfig(CONFIG_START_HEROIC_PLAYER_LEVEL);
+
+        // For health and mana    
+        sObjectMgr->GetPlayerClassLevelInfo(newClass, startLevel, &classInfo);
     }
 
+    // Set up the transaction
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+
+    // Clear the mod tables
+    transaction->Append("DELETE FROM `mod_multi_class_characters` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_spell` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_action` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_glyphs` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_aura` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_inventory` WHERE guid = {} AND class = {} AND `bag` = 0 AND `slot` <= 18;", player->GetGUID().GetCounter(), oldClass);
+
+    // Copy the active data into the mod tables
+    transaction->Append("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO `mod_multi_class_character_inventory` (`guid`, `class`, `bag`, `slot`, `item`) SELECT `guid`, {}, `bag`, `slot`, `item` FROM character_inventory WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", oldClass, player->GetGUID().GetCounter());
+
+
+
+
+
+    // Purge the tables that have class-specific data only
+    transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
+    // TODO: Make the spell table be more dynamic
+    transaction->Append("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_skills` WHERE guid = {}", player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_inventory` WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->GetGUID().GetCounter());
+
+    // New
+    if (isNew)
+    {
+        // Update the character core table to reflect the switch
+        transaction->Append("UPDATE characters SET `class` = {}, `level` = {}, `xp` = 0, `leveltime` = 0, `rest_bonus` = 0, `resettalents_cost` = 0, `resettalents_time` = 0, health = {}, power1 = {}, power2 = 0, power3 = 0, power4 = 100, power5 = 0, power6 = 0, power7 = 0, `talentGroupsCount` = 1, `activeTalentGroup` = 0 WHERE guid = {}", newClass, startLevel, classInfo.basehealth, classInfo.basemana, player->GetGUID().GetCounter());
+    }
+    // Existing
+    else
+    {
+        // Copy in the stored version for existing
+        transaction->Append("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", newClass, player->GetGUID().GetCounter());
+        transaction->Append("INSERT INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+        transaction->Append("INSERT INTO character_spell (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_spell WHERE GUID = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+        transaction->Append("INSERT INTO character_skills (guid, skill, `value`, `max`) SELECT guid, skill, `value`, `max` FROM mod_multi_class_character_skills WHERE GUID = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+        transaction->Append("INSERT INTO character_action (guid, spec, button, `action`, `type`) SELECT guid, spec, button, `action`, `type` FROM mod_multi_class_character_action WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+        transaction->Append("INSERT INTO character_glyphs (guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM mod_multi_class_character_glyphs WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+        transaction->Append("INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM mod_multi_class_character_aura WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+        transaction->Append("INSERT INTO `character_inventory` (`guid`, `bag`, `slot`, `item`) SELECT `guid`, `bag`, `slot`, `item` FROM mod_multi_class_character_inventory WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+    }
+
+    // Commit the transaction
+    CharacterDatabase.CommitTransaction(transaction);
+
+    // Kick the player
+    //sWorld->KickSession(player->GetSession()->GetAccountId());
     return true;
 }
 
@@ -176,94 +248,7 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     QueuedClassSwitch queuedClassSwitch = GetQueuedClassSwitch(player);
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
-
-    // Finalize new class setup
-    if (queuedClassSwitch.isNew == true)
-    {
-        // Fill health and mana
-        player->SetFullHealth();
-        player->SetPower(POWER_MANA, player->GetMaxPower(POWER_MANA));
-
-    }
-
-
-
-
-    /*
-    // Re-equip all of the items again to update auras and visuals
-    for (uint8 i = 0; i <= 19; i++)
-    {
-        if (Item* pItem = player->GetItemByPos(0, i))
-        {
-            uint16 dest;
-            InventoryResult msg = player->CanEquipItem(NULL_SLOT, dest, pItem, false);
-            if (msg == EQUIP_ERR_OK)
-            {
-                player->EquipItem(dest, pItem, true);
-            }
-        }
-    }
-    */
-    //for (uint8 i = 0; i <= 19; i++)
-    //{
-    //    if (Item* pItem = player->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-    //    {
-    //        uint16 eDest;
-
-    //        // equip offhand weapon/shield if it attempt equipped before main-hand weapon
-    //        InventoryResult msg = player->CanEquipItem(NULL_SLOT, eDest, pItem, false);
-    //        if (msg == EQUIP_ERR_OK)
-    //        {
-    //            player->RemoveItem(00, i, true);
-    //            player->EquipItem(eDest, pItem, true);
-    //        }
-    //    }
-    //}
-    /*
-        // Perform a remove to clear visuals
-    for (uint8 i = 0; i <= 19; i++)
-    {
-        if (Item* pItem = player->GetItemByPos(0, i))
-        {
-            player->RemoveItem(00, i, true);
-        }
-    }
-    */
-
-    // New
-    //if (isNew)
-    //{
-    //    // Level
-    //    uint32 startLevel = newClass != CLASS_DEATH_KNIGHT
-    //        ? sWorld->getIntConfig(CONFIG_START_PLAYER_LEVEL)
-    //        : sWorld->getIntConfig(CONFIG_START_HEROIC_PLAYER_LEVEL);
-
-    //    // For health and mana
-    //    PlayerClassLevelInfo classInfo;
-    //    sObjectMgr->GetPlayerClassLevelInfo(newClass, startLevel, &classInfo);
-
-    //    // Set the new character data
-    //    CharacterDatabase.DirectExecute("UPDATE characters SET `class` = {}, `level` = {}, `xp` = 0, `leveltime` = 0, `rest_bonus` = 0, `resettalents_cost` = 0, `resettalents_time` = 0, health = {}, power1 = {}, power2 = 0, power3 = 0, power4 = 100, power5 = 0, power6 = 0, power7 = 0, `talentGroupsCount` = 1, `activeTalentGroup` = 0 WHERE guid = {}", newClass, startLevel, classInfo.basehealth, classInfo.basemana, player->GetGUID().GetCounter());
-    //}
-    //// Existing
-    //else
-    //{
-    //    // Copy in the stored version for existing
-    //    CharacterDatabase.DirectExecute("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", newClass, player->GetGUID().GetCounter());
-    //}
-
-    /*
-        // New
-    if (isNew)
-    {
-        player->InitTalentForLevel();
-    }
-
-            // Generate a new list of spells for this class
-        player->LearnCustomSpells();
-
-    */
-
+     
     // Clear the class switch
     DeleteQueuedClassSwitch(player);
     return true;
@@ -313,81 +298,6 @@ QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
 void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
 {
     CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
-}
-
-bool MultiClassMod::SwitchClassDBData(Player* player, uint8 oldClass, uint8 newClass, bool isNew)
-{
-    // Pull needed metadata
-    uint32 startLevel;
-    PlayerClassLevelInfo classInfo;
-    if (isNew)
-    {
-        // For start level
-        startLevel = newClass != CLASS_DEATH_KNIGHT
-            ? sWorld->getIntConfig(CONFIG_START_PLAYER_LEVEL)
-            : sWorld->getIntConfig(CONFIG_START_HEROIC_PLAYER_LEVEL);
-
-        // For health and mana    
-        sObjectMgr->GetPlayerClassLevelInfo(newClass, startLevel, &classInfo);
-    }
-
-    // Set up the transaction
-    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
-
-    // Clear the mod tables
-    transaction->Append("DELETE FROM `mod_multi_class_characters` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_spell` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_action` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_glyphs` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_aura` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    transaction->Append("DELETE FROM `mod_multi_class_character_inventory` WHERE guid = {} AND class = {} AND `bag` = 0 AND `slot` <= 18;", player->GetGUID().GetCounter(), oldClass);
-
-    // Copy the active data into the mod tables
-    transaction->Append("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO `mod_multi_class_character_inventory` (`guid`, `class`, `bag`, `slot`, `item`) SELECT `guid`, {}, `bag`, `slot`, `item` FROM character_inventory WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", oldClass, player->GetGUID().GetCounter());
-
-    // Purge the tables that have class-specific data only
-    transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
-    // TODO: Make the spell table be more dynamic
-    transaction->Append("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_skills` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_inventory` WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->GetGUID().GetCounter());
-
-    // New
-    if (isNew)
-    {
-        // Update the character core table to reflect the switch
-        transaction->Append("UPDATE characters SET `class` = {}, `level` = {}, `xp` = 0, `leveltime` = 0, `rest_bonus` = 0, `resettalents_cost` = 0, `resettalents_time` = 0, health = {}, power1 = {}, power2 = 0, power3 = 0, power4 = 100, power5 = 0, power6 = 0, power7 = 0, `talentGroupsCount` = 1, `activeTalentGroup` = 0 WHERE guid = {}", newClass, startLevel, classInfo.basehealth, classInfo.basemana, player->GetGUID().GetCounter());
-    }
-    // Existing
-    else
-    {
-        // Copy in the stored version for existing
-        transaction->Append("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", newClass, player->GetGUID().GetCounter());
-        transaction->Append("INSERT INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-        transaction->Append("INSERT INTO character_spell (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_spell WHERE GUID = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-        transaction->Append("INSERT INTO character_skills (guid, skill, `value`, `max`) SELECT guid, skill, `value`, `max` FROM mod_multi_class_character_skills WHERE GUID = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-        transaction->Append("INSERT INTO character_action (guid, spec, button, `action`, `type`) SELECT guid, spec, button, `action`, `type` FROM mod_multi_class_character_action WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-        transaction->Append("INSERT INTO character_glyphs (guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM mod_multi_class_character_glyphs WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-        transaction->Append("INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM mod_multi_class_character_aura WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-        transaction->Append("INSERT INTO `character_inventory` (`guid`, `bag`, `slot`, `item`) SELECT `guid`, `bag`, `slot`, `item` FROM mod_multi_class_character_inventory WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
-    }
-
-    // Commit the transaction
-    CharacterDatabase.CommitTransaction(transaction);
-
-    return true;
 }
 
 class MultiClass_PlayerScript : public PlayerScript

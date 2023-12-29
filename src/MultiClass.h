@@ -56,8 +56,6 @@ private:
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
 
-    bool SwitchClassDBData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-
 public:
     static MultiClassMod* instance()
     {
