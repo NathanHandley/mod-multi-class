@@ -61,6 +61,7 @@ public:
 
 private:
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
+    bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
 
     bool SwitchClassCoreData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
     bool SwitchClassTalentData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);

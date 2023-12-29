@@ -116,21 +116,6 @@ bool MultiClassMod::LoadClassAbilityData()
 
 bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass)
 {
-    //uint32 curRaceClassgender = player->GetUInt32Value(UNIT_FIELD_BYTES_0);
-    //player->SetUInt32Value(UNIT_FIELD_BYTES_0, (curRaceClassgender | (newClass << 8)));
-    //uint32 RaceClassGender = (RACE_HUMAN) | (newClass << 8) | (GENDER_FEMALE << 16);
-    //player->SetUInt32Value(UNIT_FIELD_BYTES_0, RaceClassGender);
-
-   /* uint8 curRace = player->getRace();
-    uint8 curGender = player->getGender();
-    uint32 RaceClassGender = curRace | (newClass << 8) | (curGender << 16);
-    player->SetUInt32Value(UNIT_FIELD_BYTES_0, RaceClassGender);*/
-
- //   player->SaveToDB(false, false);
-
-    
-//    QueryResult queryResult = CharacterDatabase.Query("SELECT 'nextclass' FROM `mod_multi_class_next_switch_class` WHERE 'guid' = {}", player->GetGUID().GetCounter());
-//    if (queryResult && queryResult->GetRowCount() > 0)
     // Delete the switch row if it's already there
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
 
@@ -138,6 +123,11 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     if (newClass == player->getClass())
     {
         handler->PSendSysMessage("Class change requested is the current class, so taking no action on the next login.");
+        return true;
+    }
+    else if (!IsValidRaceClassCombo(newClass, player->getRace()))
+    {
+        handler->PSendSysMessage("Class change could not be completed because this class and race combo is not enabled on the server.");
         return true;
     }
 
@@ -231,6 +221,15 @@ bool MultiClassMod::DoesSavedClassDataExistForPlayer(Player* player, uint8 looku
     if (!queryResult || queryResult->GetRowCount() == 0)
         return false;
     return true;
+}
+
+bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
+{
+    PlayerInfo const* info = sObjectMgr->GetPlayerInfo(lookupRace, lookupClass);
+    if (!info)
+        return false;
+    else
+        return true;
 }
 
 bool MultiClassMod::SwitchClassCoreData(Player* player, uint8 oldClass, uint8 newClass, bool isNew)
@@ -538,7 +537,7 @@ public:
             enteredValueLine.append(className);
             handler->PSendSysMessage(enteredValueLine.c_str());
             return true;
-        }        
+        }
 
         Player* player = handler->GetPlayer();
         if (!MultiClass->MarkClassChangeOnNextLogout(handler, player, classInt))
