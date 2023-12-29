@@ -55,6 +55,7 @@ private:
     void QueueClassSwitch(Player* player, uint8 nextClass);
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
+    std::string GenerateSkillIncludeString();
 
 public:
     static MultiClassMod* instance()

@@ -33,6 +33,8 @@ using namespace std;
 
 static bool ConfigEnabled = true;
 static uint8 ConfigCrossClassAbilityLevelGap = 10; // TODO: Load from config
+static set<uint32> ConfigCrossClassIncludeSkillIDs;
+//static set<uint32> ConfigCrossClassSpellIDs; // TODO: Load from config
 
 MultiClassMod::MultiClassMod()
 {
@@ -42,6 +44,72 @@ MultiClassMod::MultiClassMod()
 MultiClassMod::~MultiClassMod()
 {
 
+}
+
+bool MultiClassMod::DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass)
+{
+    QueryResult queryResult = CharacterDatabase.Query("SELECT guid, class FROM mod_multi_class_characters WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), lookupClass);
+    if (!queryResult || queryResult->GetRowCount() == 0)
+        return false;
+    return true;
+}
+
+bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
+{
+    PlayerInfo const* info = sObjectMgr->GetPlayerInfo(lookupRace, lookupClass);
+    if (!info)
+        return false;
+    else
+        return true;
+}
+
+void MultiClassMod::QueueClassSwitch(Player* player, uint8 nextClass)
+{
+    bool isNewClass = !DoesSavedClassDataExistForPlayer(player, nextClass);
+    CharacterDatabase.DirectExecute("INSERT INTO `mod_multi_class_next_switch_class` (guid, nextclass, isnew) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), nextClass, isNewClass);
+}
+
+QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
+{
+    QueuedClassSwitch queuedClassSwitch;
+    QueryResult queryResult = CharacterDatabase.Query("SELECT nextclass, IsNew FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
+    if (!queryResult || queryResult->GetRowCount() == 0)
+    {
+        queuedClassSwitch.classID = CLASS_NONE;
+        queuedClassSwitch.isNew = false;
+    }
+    else
+    {
+        Field* fields = queryResult->Fetch();
+        queuedClassSwitch.classID = fields[0].Get<uint8>();
+        queuedClassSwitch.isNew = fields[1].Get<bool>();
+    }
+    return queuedClassSwitch;
+}
+
+void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
+{
+    CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
+}
+
+std::string MultiClassMod::GenerateSkillIncludeString()
+{
+    if (ConfigCrossClassIncludeSkillIDs.empty() == true)
+        return "";
+
+    bool isFirstElement = true;
+    stringstream generatedStringStream;
+    generatedStringStream << "AND skill NOT IN (";
+    for(auto skillID : ConfigCrossClassIncludeSkillIDs)
+    {
+        if (!isFirstElement)
+            generatedStringStream << ", ";
+        generatedStringStream << skillID;
+        isFirstElement = false;
+    }
+    generatedStringStream << ")";
+
+    return generatedStringStream.str();
 }
 
 // (Re)populates the ability data for the classes
@@ -200,15 +268,11 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     transaction->Append("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO `mod_multi_class_character_inventory` (`guid`, `class`, `bag`, `slot`, `item`) SELECT `guid`, {}, `bag`, `slot`, `item` FROM character_inventory WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", oldClass, player->GetGUID().GetCounter());
 
-
-
-
-
     // Purge the tables that have class-specific data only
     transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
     // TODO: Make the spell table be more dynamic
     transaction->Append("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter());
-    transaction->Append("DELETE FROM `character_skills` WHERE guid = {}", player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_skills` WHERE guid = {} {}", player->GetGUID().GetCounter(), GenerateSkillIncludeString());
     transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
@@ -254,52 +318,6 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     return true;
 }
 
-bool MultiClassMod::DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass)
-{
-    QueryResult queryResult = CharacterDatabase.Query("SELECT guid, class FROM mod_multi_class_characters WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), lookupClass);
-    if (!queryResult || queryResult->GetRowCount() == 0)
-        return false;
-    return true;
-}
-
-bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
-{
-    PlayerInfo const* info = sObjectMgr->GetPlayerInfo(lookupRace, lookupClass);
-    if (!info)
-        return false;
-    else
-        return true;
-}
-
-void MultiClassMod::QueueClassSwitch(Player* player, uint8 nextClass)
-{
-    bool isNewClass = !DoesSavedClassDataExistForPlayer(player, nextClass);
-    CharacterDatabase.DirectExecute("INSERT INTO `mod_multi_class_next_switch_class` (guid, nextclass, isnew) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), nextClass, isNewClass);
-}
-
-QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
-{
-    QueuedClassSwitch queuedClassSwitch;
-    QueryResult queryResult = CharacterDatabase.Query("SELECT nextclass, IsNew FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
-    if (!queryResult || queryResult->GetRowCount() == 0)
-    {
-        queuedClassSwitch.classID = CLASS_NONE;
-        queuedClassSwitch.isNew = false;
-    }
-    else
-    {
-        Field* fields = queryResult->Fetch();
-        queuedClassSwitch.classID = fields[0].Get<uint8>();
-        queuedClassSwitch.isNew = fields[1].Get<bool>();
-    }
-    return queuedClassSwitch;
-}
-
-void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
-{
-    CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
-}
-
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -337,11 +355,45 @@ public:
 
     void OnAfterConfigLoad(bool /*reload*/) override
     {
+        // Enabled Flag
         ConfigEnabled = sConfigMgr->GetOption<bool>("MultiClass.Enable", true);
+
+        // Class Ability Data
         if (!MultiClass->LoadClassAbilityData())
         {
             LOG_ERROR("module", "multiclass: Could not load the class ability data after the config load");
         }
+
+        // Cross Class Skills
+        ConfigCrossClassIncludeSkillIDs = GetSetFromConfigString("MultiClass.CrossClassIncludeSkillIDs");
+    }
+
+    set<uint32> GetSetFromConfigString(string configStringName)
+    {
+        string configString = sConfigMgr->GetOption<std::string>(configStringName, "");
+
+        std::string delimitedValue;
+        std::stringstream delimetedValueStream;
+        std::set<uint32> generatedSet;
+
+        delimetedValueStream.str(configString);
+        while (std::getline(delimetedValueStream, delimitedValue, ','))
+        {
+            std::string curValue;
+            std::stringstream delimetedPairStream(delimitedValue);
+            delimetedPairStream >> curValue;
+            auto itemId = atoi(curValue.c_str());
+            if (generatedSet.find(itemId) != generatedSet.end())
+            {
+                LOG_ERROR("module", "multiclass: Duplicate value found in config string named {}",configString);
+            }
+            else
+            {
+                generatedSet.insert(itemId);
+            }
+        }
+
+        return generatedSet;
     }
 };
 
