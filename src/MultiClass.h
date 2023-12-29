@@ -60,9 +60,7 @@ public:
     bool PerformQueuedClassSwitch(Player* player);
 
 private:
-    //bool ChangeActivePlayerClass(Player* player, uint8 newClass);
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
-    //bool GenerateNewClassForPlayer(Player* player, uint8 newClass);
 
     bool SwitchClassCoreData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
     bool SwitchClassTalentData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
@@ -71,6 +69,7 @@ private:
     bool SwitchClassActionBarData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
     bool SwitchClassGlyphData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
     bool SwitchClassAuraData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
+    bool SwitchClassEquipmentData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
 
     //bool GetIsInitialized() { return mIsInitialized; }
 };
