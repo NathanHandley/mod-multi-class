@@ -78,6 +78,7 @@ DROP TABLE IF EXISTS `mod_multi_class_next_switch_class`;
 CREATE TABLE `mod_multi_class_next_switch_class` (
 	`guid` INT(10) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'Global Unique Identifier',
 	`nextclass` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
+	`IsNew` TINYINT(3) NOT NULL,
 	PRIMARY KEY (`guid`) USING BTREE
 );
 
@@ -106,4 +107,17 @@ CREATE TABLE `mod_multi_class_character_glyphs` (
 	`glyph6` SMALLINT(5) UNSIGNED NULL DEFAULT '0',
 	PRIMARY KEY (`guid`, `class`, `talentGroup`) USING BTREE,
 	INDEX `idx_guidclass` (`guid`, `class`) USING BTREE
-)
+);
+
+DROP TABLE IF EXISTS `mod_multi_class_character_inventory`;
+CREATE TABLE `mod_multi_class_character_inventory` (
+	`guid` INT(10) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'Global Unique Identifier',
+	`class` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
+	`bag` INT(10) UNSIGNED NOT NULL DEFAULT '0',
+	`slot` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
+	`item` INT(10) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'Item Global Unique Identifier',
+	PRIMARY KEY (`item`) USING BTREE,
+	UNIQUE INDEX `guid` (`guid`, `class`, `bag`, `slot`) USING BTREE,
+	INDEX `idx_guid` (`guid`) USING BTREE,
+	INDEX `idx_guidclass` (`guid`, `class`) USING BTREE
+);
