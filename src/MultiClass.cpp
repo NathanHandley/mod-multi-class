@@ -177,6 +177,19 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
 
+    // Finalize new class setup
+    if (queuedClassSwitch.isNew == true)
+    {
+        // Fill health and mana
+        player->SetFullHealth();
+        player->SetPower(POWER_MANA, player->GetMaxPower(POWER_MANA));
+
+    }
+
+
+
+
+    /*
     // Re-equip all of the items again to update auras and visuals
     for (uint8 i = 0; i <= 19; i++)
     {
@@ -190,6 +203,7 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
             }
         }
     }
+    */
     //for (uint8 i = 0; i <= 19; i++)
     //{
     //    if (Item* pItem = player->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
