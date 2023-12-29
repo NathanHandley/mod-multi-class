@@ -186,6 +186,11 @@ bool MultiClassMod::PerformQueuedClassSwitch(Player* player)
         LOG_ERROR("module", "multiclass: Could not switch core class data {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
         return false;
     }
+    if (!SwitchClassSkillData(player, curClass, nextClass, isNewClass))
+    {
+        LOG_ERROR("module", "multiclass: Could not switch skill class data for class {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
+        return false;
+    }
     if (!SwitchClassTalentData(player, curClass, nextClass, isNewClass))
     {
         LOG_ERROR("module", "multiclass: Could not switch talent class data for class {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
@@ -194,11 +199,6 @@ bool MultiClassMod::PerformQueuedClassSwitch(Player* player)
     if (!SwitchClassSpellData(player, curClass, nextClass, isNewClass))
     {
         LOG_ERROR("module", "multiclass: Could not switch spell class data for class {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
-        return false;
-    }
-    if (!SwitchClassSkillData(player, curClass, nextClass, isNewClass))
-    {
-        LOG_ERROR("module", "multiclass: Could not switch skill class data for class {} for player named {} with guid {}", nextClass, player->GetName(), player->GetGUID().GetCounter());
         return false;
     }
     if (!SwitchClassActionBarData(player, curClass, nextClass, isNewClass))
@@ -257,7 +257,7 @@ bool MultiClassMod::SwitchClassCoreData(Player* player, uint8 oldClass, uint8 ne
     // Existing
     else
     {
-        // Pull the data over for this table
+        // Copy in the stored version for existing
         CharacterDatabase.Execute("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", newClass, player->GetGUID().GetCounter());
     }
 
@@ -268,21 +268,22 @@ bool MultiClassMod::SwitchClassTalentData(Player* player, uint8 oldClass, uint8 
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT {}, {}, spell, specMask FROM character_talent WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+
+    // Delete the active version of talent data
+    CharacterDatabase.Execute("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
 
     // New
     if (isNew)
     {
-
-
+        player->InitTalentForLevel();
     }
     // Existing
     else
     {
-
+        // Copy in the stored version for existing
+        CharacterDatabase.Execute("INSERT INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
     }
-
-    // TODO
 
     return true;
 }
@@ -291,21 +292,20 @@ bool MultiClassMod::SwitchClassSpellData(Player* player, uint8 oldClass, uint8 n
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_spell` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT {}, {}, spell, specMask FROM character_spell WHERE GUID = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
 
     // New
     if (isNew)
     {
-
-
+        // Generate a new list of spells for this class
+        player->LearnCustomSpells();
     }
     // Existing
     else
     {
-
+        // Copy in the existing spells
+        CharacterDatabase.Execute("INSERT INTO character_spell (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_spell WHERE GUID = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
     }
-
-    // TODO
 
     return true;
 }
@@ -314,21 +314,24 @@ bool MultiClassMod::SwitchClassSkillData(Player* player, uint8 oldClass, uint8 n
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT {}, {}, skill, value, max FROM character_skills WHERE GUID = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
+
+    // Delete the active version of skill data
+    CharacterDatabase.Execute("DELETE FROM `character_skills` WHERE guid = {}", player->GetGUID().GetCounter());
 
     // New
     if (isNew)
     {
-
-
+        // Generate a new list of skills for this class
+        player->LearnDefaultSkills();
+        player->UpdateSkillsForLevel();
     }
     // Existing
     else
     {
-
+        // Copy the stored version in
+        CharacterDatabase.Execute("INSERT INTO character_skills (guid, skill, `value`, `max`) SELECT guid, skill, `value`, `max` FROM mod_multi_class_character_skills WHERE GUID = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
     }
-
-    // TODO
 
     return true;
 }
@@ -337,21 +340,32 @@ bool MultiClassMod::SwitchClassActionBarData(Player* player, uint8 oldClass, uin
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_action` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT {}, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+
+    // Delete the active version of action bar data
+    CharacterDatabase.Execute("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
 
     // New
     if (isNew)
     {
-        
-
+        // Set up new action bars
+        PlayerInfo const* info = sObjectMgr->GetPlayerInfo(player->getRace(), newClass);
+        if (!info)
+        {
+            LOG_ERROR("module", "multiclass: Could not pull PlayerInfo for race: {} class: {} for guid {} in order to set up action bars", player->getRace(), newClass, player->GetGUID().GetCounter());
+        }
+        else
+        {
+            for (PlayerCreateInfoActions::const_iterator action_itr = info->action.begin(); action_itr != info->action.end(); ++action_itr)
+                player->addActionButton(action_itr->button, action_itr->action, action_itr->type);
+        }
     }
     // Existing
     else
     {
-
+        // Copy the stored version in
+        CharacterDatabase.Execute("INSERT INTO character_action (guid, spec, button, `action`, `type`) SELECT guid, spec, button, `action`, `type` FROM mod_multi_class_character_action WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
     }
-
-    // TODO
 
     return true;
 }
@@ -360,21 +374,21 @@ bool MultiClassMod::SwitchClassGlyphData(Player* player, uint8 oldClass, uint8 n
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_glyphs` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT {}, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
+
+    // Delete the active version of glyph data
+    CharacterDatabase.Execute("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
 
     // New
     if (isNew)
     {
-
-
+        player->InitGlyphsForLevel();
     }
-    // Existing
     else
     {
-
+        // Copy the stored version in
+        CharacterDatabase.Execute("INSERT INTO character_glyphs (guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM mod_multi_class_character_glyphs WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
     }
-
-    // TODO
 
     return true;
 }
@@ -383,21 +397,17 @@ bool MultiClassMod::SwitchClassAuraData(Player* player, uint8 oldClass, uint8 ne
 {
     // Clear out any old version of the data for this class in the mod table, and copy in fresh
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_aura` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
-    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT {}, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
+    CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
 
-    // New
-    if (isNew)
-    {
+    // Delete the active version
+    CharacterDatabase.Execute("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
 
-
-    }
     // Existing
-    else
+    if (!isNew)
     {
-
-    }
-
-    // TODO
+        // Copy in existing auras
+        CharacterDatabase.Execute("INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM mod_multi_class_character_aura WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
+    }    
 
     return true;
 }
@@ -461,33 +471,6 @@ public:
     }
 };
 
-//class MultiClass_CommandScript : public CommandScript
-//{
-// TODO: Add command to 'reload from database'
-//public:
-//    MultiClass_CommandScript() : CommandScript("MultiClass_CommandScript") { }
-//
-//    ChatCommandTable GetCommands() const override
-//    {
-//        static ChatCommandTable acaCommandTable =
-//        {
-//            { "test",     HandleACATestCommand,   SEC_PLAYER, Console::Yes }
-//        };
-//        static ChatCommandTable commandTable =
-//        {
-//            { "mct", acaCommandTable }
-//        };
-//        return commandTable;
-//    }
-//
-//    static bool HandleACATestCommand(ChatHandler* handler, const char* args)
-//    {
-//        Player* player = handler->GetPlayer();
-//        ChatHandler(player->GetSession()).SendSysMessage("This is a test");
-//        return true;
-//    }
-//};
-
 class MultiClass_CommandScript : public CommandScript
 {
 public:
@@ -495,14 +478,14 @@ public:
 
     std::vector<ChatCommand> GetCommands() const
     {
-        static std::vector<ChatCommand> ABCommandTable =
+        static std::vector<ChatCommand> CommandTable =
         {
-            { "changeclass",        SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes a class to the passed class" },
+            { "change",        SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes your class" },
         };
 
         static std::vector<ChatCommand> commandTable =
         {
-            { "multiclass",       SEC_PLAYER,                             false, NULL,                      "", ABCommandTable },
+            { "class",       SEC_PLAYER,                             false, NULL,                      "", CommandTable },
         };
         return commandTable;
     }
@@ -514,8 +497,8 @@ public:
 
         if (!*args)
         {
-            handler->PSendSysMessage(".multiclass changeclass 'class'");
-            handler->PSendSysMessage("Changes the player class on next logout.  Example: '.multiclass changeclass warrior'");
+            handler->PSendSysMessage(".class change 'class'");
+            handler->PSendSysMessage("Changes the player class on next logout.  Example: '.class change warrior'");
             handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, deathknight, shaman, mage, warlock, druid");
             return true;
         }
@@ -544,8 +527,8 @@ public:
             classInt = CLASS_DRUID;
         else
         {
-            handler->PSendSysMessage(".multiclass changeclass 'class'");
-            handler->PSendSysMessage("Changes the player class.  Example: '.multiclass changeclass warrior'");
+            handler->PSendSysMessage(".class change 'class'");
+            handler->PSendSysMessage("Changes the player class.  Example: '.class change warrior'");
             handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, deathknight, shaman, mage warlock, druid");
             std::string enteredValueLine = "Entered Value was ";
             enteredValueLine.append(className);
@@ -566,8 +549,7 @@ public:
 
 void AddMultiClassScripts()
 {
+    new MultiClass_CommandScript();
     new MultiClass_PlayerScript();
     new MultiClass_WorldScript();
-    //new MultiClass_CommandScript();
-    new MultiClass_CommandScript();
 }
