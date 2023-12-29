@@ -294,6 +294,10 @@ bool MultiClassMod::SwitchClassSpellData(Player* player, uint8 oldClass, uint8 n
     CharacterDatabase.Execute("DELETE FROM `mod_multi_class_character_spell` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), oldClass);
     CharacterDatabase.Execute("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
 
+    // Clear out the list of spells
+    // TODO: Make this more dynamic with a lookup to allow cross-class abilities
+    CharacterDatabase.Execute("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter(), oldClass);
+
     // New
     if (isNew)
     {
