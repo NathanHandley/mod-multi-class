@@ -37,13 +37,26 @@ struct MultiClassSpells
     bool IsLearnedByTalent;
 };
 
+struct QueuedClassSwitch
+{
+    uint8 classID;
+    bool isNew;
+};
+
 class MultiClassMod
 {
 private:
     MultiClassMod();
 
-    //bool mIsInitialized;
     std::map<uint16, std::list<MultiClassSpells>> ClassSpellsByClass;
+
+    bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
+    bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
+    void QueueClassSwitch(Player* player, uint8 nextClass);
+    QueuedClassSwitch GetQueuedClassSwitch(Player* player);
+    void DeleteQueuedClassSwitch(Player* player);
+
+    bool SwitchClassDBData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
 
 public:
     static MultiClassMod* instance()
@@ -57,22 +70,8 @@ public:
     bool LoadClassAbilityData();
 
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
-    bool PerformQueuedClassSwitch(Player* player);
-
-private:
-    bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
-    bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
-
-    bool SwitchClassCoreData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassTalentData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassSpellData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassSkillData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassActionBarData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassGlyphData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassAuraData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-    bool SwitchClassEquipmentData(Player* player, uint8 oldClass, uint8 newClass, bool isNew);
-
-    //bool GetIsInitialized() { return mIsInitialized; }
+    bool PerformQueuedClassSwitchOnLogout(Player* player);
+    bool PerformQueuedClassSwitchOnLogin(Player* player);
 };
 
 #define MultiClass MultiClassMod::instance()
