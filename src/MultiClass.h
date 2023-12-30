@@ -57,18 +57,20 @@ private:
     void QueueClassSwitch(Player* player, uint8 nextClass);
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
-    std::string GenerateSkillIncludeString();
+    std::string GenerateSkillIncludeString(); // TODO: Delete
     std::string GenerateSpellWhereInClauseString(Player* player);
     void AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction);
 
-    void AddTransactionsForModClassCharacter(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassTalentCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassSpellCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassSkillsCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassGlyphsCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassAuraCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForModClassInventoryCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForCopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForMoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForMoveClassSpellsToModSpellsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForMoveClassSkillsToModSkillsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForReplaceModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForMoveGlyphsToModGlyhpsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForMoveAuraToModAuraTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForMoveEquipToModInventoryTable(Player* player, CharacterDatabaseTransaction& transaction);
+
+    void AddTransactionsForCopyModSpellTableIntoClassSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
 public:
     static MultiClassMod* instance()
