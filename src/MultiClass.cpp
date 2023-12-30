@@ -206,7 +206,9 @@ void MultiClassMod::AddTransactionsForModClassCharacter(Player* player, Characte
 void MultiClassMod::AddTransactionsForModClassTalentCopy(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
-    transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
+
+    for (auto& curTalent : player->GetTalentMap())
+        transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) VALUES ({}, {}, {}, {})", player->GetGUID().GetCounter(), player->getClass(), curTalent.second->talentID, (uint32)curTalent.second->specMask);
 }
 
 void MultiClassMod::AddTransactionsForModClassSpellCopy(Player* player, CharacterDatabaseTransaction& transaction)
