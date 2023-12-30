@@ -111,11 +111,46 @@ std::string MultiClassMod::GenerateSkillIncludeString()
     return generatedStringStream.str();
 }
 
+std::string MultiClassMod::GenerateSpellWhereInClauseString(Player* player)
+{
+    uint8 playerClass = player->getClass();
+    if (ClassSpellsByClassAndSpellID.find(playerClass) == ClassSpellsByClassAndSpellID.end())
+    {
+        LOG_ERROR("module", "multiclass: Error pulling class spell data from the database. Does the 'mod_multi_class_spells' table have records for class {}?", playerClass);
+        return "";
+    }
+
+    // Go through the unordered map to pull out this classes abilities
+    set<uint32> classSpellIDs;
+    for (auto& curPlayerSpell : player->GetSpellMap())
+    {
+        if (ClassSpellsByClassAndSpellID[playerClass].find(curPlayerSpell.first) != ClassSpellsByClassAndSpellID[playerClass].end())
+        {
+            classSpellIDs.insert(curPlayerSpell.first);
+        }
+    }
+    if (classSpellIDs.empty())
+        return "";
+
+    bool isFirstElement = true;
+    stringstream generatedStringStream;
+    generatedStringStream << "AND spell IN (";
+    for (auto spellID : classSpellIDs)
+    {
+        if (!isFirstElement)
+            generatedStringStream << ", ";
+        generatedStringStream << spellID;
+        isFirstElement = false;
+    }
+    generatedStringStream << ")";
+    return generatedStringStream.str();
+}
+
 // (Re)populates the ability data for the classes
 bool MultiClassMod::LoadClassAbilityData()
 {
     // Clear old
-    ClassSpellsByClass.clear();
+    ClassSpellsByClassAndSpellID.clear();
 
     // Cache the mod for talent level calculations
     float talentRateMod = 1.0f;
@@ -170,16 +205,16 @@ bool MultiClassMod::LoadClassAbilityData()
         }
         else
         {
-            LOG_ERROR("module", "multiclass: Could not interpret the race, value passed was {}", curClass);
+            LOG_ERROR("module", "multiclass: Could not interpret the class faction, value passed was {}", curClass);
             curClassData.AllowAlliance = false;
             curClassData.AllowHorde = false;
         }
-
-        // Add to the appropriate class trainer list
-        // TODO: Is this needed?
-        ///if (ClassTrainerDataByClass.find(curClass) == ClassTrainerDataByClass.end())
-        //ClassTrainerDataByClass[curClass] = std::list<MultiClassTrainerClassData>();
-        ClassSpellsByClass[curClass].push_back(curClassData);
+        if (ClassSpellsByClassAndSpellID[curClass].find(curClassData.SpellID) != ClassSpellsByClassAndSpellID[curClass].end())
+        {
+            LOG_ERROR("module", "multiclass: SpellID with ID {} for class {} already in the Class Spells map, skipping...", curClassData.SpellID, curClass);
+        }
+        else
+            ClassSpellsByClassAndSpellID[curClass].insert(pair<uint32, MultiClassSpells>(curClassData.SpellID, curClassData));
     } while (queryResult->NextRow());
     return true;
 }
@@ -264,7 +299,7 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     // Copy the active data into the mod tables
     transaction->Append("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) SELECT {}, {}, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup FROM characters WHERE guid = {}", player->GetGUID().GetCounter(), oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
-    transaction->Append("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {}", oldClass, player->GetGUID().GetCounter());
+    transaction->Append("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_spell WHERE GUID = {} {}", oldClass, player->GetGUID().GetCounter(), GenerateSpellWhereInClauseString(player));
     transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {} {}", oldClass, player->GetGUID().GetCounter(), alwaysIncludeSkillString);
     transaction->Append("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
     transaction->Append("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", oldClass, player->GetGUID().GetCounter());
@@ -273,14 +308,6 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
 
     // Purge the tables that have class-specific data only
     transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
-
-
-
-    // TODO: Make the spell table be more dynamic
-    transaction->Append("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter());
-
-
-
     transaction->Append("DELETE FROM `character_skills` WHERE guid = {} {}", player->GetGUID().GetCounter(), alwaysIncludeSkillString);
     transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());

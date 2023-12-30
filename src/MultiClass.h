@@ -21,7 +21,7 @@
 
 #include "Common.h"
 
-#include <list>
+#include <set>
 #include <map>
 
 struct MultiClassSpells
@@ -49,7 +49,7 @@ class MultiClassMod
 private:
     MultiClassMod();
 
-    std::map<uint16, std::list<MultiClassSpells>> ClassSpellsByClass;
+    std::map<uint16, std::map<uint32, MultiClassSpells>> ClassSpellsByClassAndSpellID;
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
@@ -57,6 +57,7 @@ private:
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
     std::string GenerateSkillIncludeString();
+    std::string GenerateSpellWhereInClauseString(Player* player);
 
 public:
     static MultiClassMod* instance()
