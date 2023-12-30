@@ -96,16 +96,9 @@ std::string MultiClassMod::GenerateSkillIncludeString()
     if (ConfigCrossClassIncludeSkillIDs.empty() == true)
         return "";
 
-    bool isFirstElement = true;
     stringstream generatedStringStream;
     generatedStringStream << "AND skill NOT IN (";
-    for(auto skillID : ConfigCrossClassIncludeSkillIDs)
-    {
-        if (!isFirstElement)
-            generatedStringStream << ", ";
-        generatedStringStream << skillID;
-        isFirstElement = false;
-    }
+    generatedStringStream << GenerateCommaDelimitedStringFromSet(ConfigCrossClassIncludeSkillIDs);
     generatedStringStream << ")";
 
     return generatedStringStream.str();
@@ -132,19 +125,49 @@ std::string MultiClassMod::GenerateSpellWhereInClauseString(Player* player)
     if (classSpellIDs.empty())
         return "";
 
-    bool isFirstElement = true;
     stringstream generatedStringStream;
     generatedStringStream << "AND spell IN (";
-    for (auto spellID : classSpellIDs)
-    {
-        if (!isFirstElement)
-            generatedStringStream << ", ";
-        generatedStringStream << spellID;
-        isFirstElement = false;
-    }
+    generatedStringStream << GenerateCommaDelimitedStringFromSet(classSpellIDs);
     generatedStringStream << ")";
-    LOG_ERROR("module", "string is {}", generatedStringStream.str());
     return generatedStringStream.str();
+}
+
+void MultiClassMod::AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction)
+{
+    uint8 playerClass = player->getClass();
+    if (ClassSpellsByClassAndSpellID.find(playerClass) == ClassSpellsByClassAndSpellID.end())
+    {
+        LOG_ERROR("module", "multiclass: Error pulling class spell data from the database. Does the 'mod_multi_class_spells' table have records for class {}?", playerClass);
+        return;
+    }
+
+    // Go through the unordered map to pull out this classes starter abilities
+    set<uint32> classSpellIDs;
+    for (auto& curClassSpell : ClassSpellsByClassAndSpellID[playerClass])
+    {
+        if (curClassSpell.second.ReqLevel == 1)
+            classSpellIDs.insert(curClassSpell.first);
+    }
+
+    // Remove any that are already in the mod spells table
+    QueryResult queryResult = CharacterDatabase.Query("SELECT `spell` FROM mod_multi_class_character_spell WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), player->getClass());
+    if (queryResult)
+    {
+        do
+        {
+            Field* fields = queryResult->Fetch();
+            uint32 spellID = fields[0].Get<uint32>();
+
+            if (classSpellIDs.find(spellID) != classSpellIDs.end())
+                classSpellIDs.erase(spellID);
+        } while (queryResult->NextRow());
+    }
+
+    // Add them if they aren't empty
+    for (auto& spellID : classSpellIDs)
+    {
+        transaction->Append("INSERT INTO `mod_multi_class_character_spell` (`guid`, `class`, `spell`, `specMask`) VALUES ({}, {}, {}, 255)", player->GetGUID().GetCounter(), player->getClass(), spellID);
+    }
 }
 
 // (Re)populates the ability data for the classes
@@ -340,7 +363,18 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     // Commit the transaction
     CharacterDatabase.CommitTransaction(transaction);
 
-    // Kick the player
+    // If this is a new class, make a new transaction to handle gaps
+    if (isNew)
+    {
+        CharacterDatabaseTransaction followUpTransaction = CharacterDatabase.BeginTransaction();
+
+        // Add any missing starter spells
+        AddInsertsForMissingStarterSpells(player, followUpTransaction);
+
+        CharacterDatabase.CommitTransaction(followUpTransaction);
+    }
+
+    // Kick the player to force full relog
     //sWorld->KickSession(player->GetSession()->GetAccountId());
     return true;
 }
@@ -515,6 +549,20 @@ public:
         return true;
     }
 };
+
+std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet)
+{
+    bool isFirstElement = true;
+    stringstream generatedStringStream;
+    for (auto element : intSet)
+    {
+        if (!isFirstElement)
+            generatedStringStream << ", ";
+        generatedStringStream << element;
+        isFirstElement = false;
+    }
+    return generatedStringStream.str();
+}
 
 void AddMultiClassScripts()
 {

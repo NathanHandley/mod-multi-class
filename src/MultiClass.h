@@ -58,6 +58,7 @@ private:
     void DeleteQueuedClassSwitch(Player* player);
     std::string GenerateSkillIncludeString();
     std::string GenerateSpellWhereInClauseString(Player* player);
+    void AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction);
 
 public:
     static MultiClassMod* instance()
@@ -74,6 +75,8 @@ public:
     bool PerformQueuedClassSwitchOnLogout(Player* player);
     bool PerformQueuedClassSwitchOnLogin(Player* player);
 };
+
+std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet);
 
 #define MultiClass MultiClassMod::instance()
 
