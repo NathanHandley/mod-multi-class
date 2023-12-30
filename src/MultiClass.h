@@ -49,7 +49,8 @@ class MultiClassMod
 private:
     MultiClassMod();
 
-    std::map<uint16, std::map<uint32, MultiClassSpells>> ClassSpellsByClassAndSpellID;
+    std::map<uint16, std::map<uint32, MultiClassSpells>> ClassSpellsByClassAndSpellID; // Can we delete this?
+    std::map<uint32, MultiClassSpells> ClassSpellsBySpellID;
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
@@ -59,6 +60,15 @@ private:
     std::string GenerateSkillIncludeString();
     std::string GenerateSpellWhereInClauseString(Player* player);
     void AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction);
+
+    void AddInsertTransactionForModClassCharacter(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassTalentCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassSpellCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassSkillsCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassGlyphsCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassAuraCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddInsertTransactionsForModClassInventoryCopy(Player* player, CharacterDatabaseTransaction& transaction);
 
 public:
     static MultiClassMod* instance()
