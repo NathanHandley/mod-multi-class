@@ -237,6 +237,42 @@ void MultiClassMod::MoveEquipToModInventoryTable(Player* player, CharacterDataba
     transaction->Append("DELETE FROM `character_inventory` WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->GetGUID().GetCounter());
 }
 
+void MultiClassMod::UpdateCharacterFromModCharacterTable(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
+{
+    QueryResult queryResult = CharacterDatabase.Query("SELECT `level`, `xp`, `leveltime`, `rest_bonus`, `resettalents_cost`, `resettalents_time`, `health`, `power1`, `power2`, `power3`, `power4`, `power5`, `power6`, `power7`, `talentGroupsCount`, `activeTalentGroup` FROM mod_multi_class_characters WHERE guid = {} AND class = {}", playerGUID, pullClassID);
+    if (!queryResult)
+    {
+        LOG_ERROR("module", "multiclass: Error pulling character data for guid {} class {}", playerGUID, pullClassID);
+    }
+    else
+    {
+        Field* fields = queryResult->Fetch();
+        uint32 spellID = fields[0].Get<uint32>();
+        auto finiteAlways = [](float f) { return std::isfinite(f) ? f : 0.0f; };
+
+        transaction->Append("UPDATE characters SET `class` = {}, `level` = {}, `xp` = {}, `leveltime` = {}, `rest_bonus` = {}, `resettalents_cost` = {}, `resettalents_time` = {}, `health` = {}, `power1` = {}, `power2` = {}, `power3` = {}, `power4` = {}, `power5` = {}, `power6` = {}, `power7` = {}, `talentGroupsCount` = {}, `activeTalentGroup` = {} WHERE `guid` = {}",
+            pullClassID,                            // class
+            fields[0].Get<uint8>(),                 // level
+            fields[1].Get<uint32>(),                // xp
+            fields[2].Get<uint32>(),                // leveltime
+            finiteAlways(fields[3].Get<float>()),   // rest_bonus
+            fields[4].Get<uint32>(),                // resettalents_cost
+            fields[5].Get<uint32>(),                // resettalents_time
+            fields[6].Get<uint32>(),                // health
+            fields[7].Get<uint32>(),                // power1
+            fields[8].Get<uint32>(),                // power2
+            fields[9].Get<uint32>(),                // power3
+            fields[10].Get<uint32>(),               // power4
+            fields[11].Get<uint32>(),               // power5
+            fields[12].Get<uint32>(),               // power6
+            fields[13].Get<uint32>(),               // power7
+            fields[14].Get<uint8>(),                // talentGroupsCount
+            fields[15].Get<uint8>(),                // activeTalentGroup
+            playerGUID
+        );
+    }
+}
+
 void MultiClassMod::CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
 {
     // Create inserts for all of the coming class spells
@@ -496,15 +532,15 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     else
     {
         // Copy in the stored version for existing
-        transaction->Append("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", nextClass, player->GetGUID().GetCounter());
+        UpdateCharacterFromModCharacterTable(player->GetGUID().GetCounter(), nextClass, transaction);
+        CopyModSpellTableIntoCharacterSpells(player->GetGUID().GetCounter(), nextClass, transaction);
+        CopyModActionTableIntoCharacterAction(player->GetGUID().GetCounter(), nextClass, transaction);
+        CopyModSkillTableIntoCharacterSkills(player->GetGUID().GetCounter(), nextClass, transaction);
+
         transaction->Append("INSERT INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
         transaction->Append("INSERT INTO character_glyphs (guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM mod_multi_class_character_glyphs WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
         transaction->Append("INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM mod_multi_class_character_aura WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
         transaction->Append("INSERT INTO `character_inventory` (`guid`, `bag`, `slot`, `item`) SELECT `guid`, `bag`, `slot`, `item` FROM mod_multi_class_character_inventory WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
-                
-        CopyModSpellTableIntoCharacterSpells(player->GetGUID().GetCounter(), nextClass, transaction);
-        CopyModActionTableIntoCharacterAction(player->GetGUID().GetCounter(), nextClass, transaction);
-        CopyModSkillTableIntoCharacterSkills(player->GetGUID().GetCounter(), nextClass, transaction);
     }
 
     // Commit the transaction
