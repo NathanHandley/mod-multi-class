@@ -57,9 +57,6 @@ private:
     void QueueClassSwitch(Player* player, uint8 nextClass);
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
-    std::string GenerateSkillIncludeString(); // TODO: Delete
-    std::string GenerateSpellWhereInClauseString(Player* player);
-    void AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction);
 
     void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
@@ -72,6 +69,7 @@ private:
 
     void CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
+    void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
 public:
     static MultiClassMod* instance()

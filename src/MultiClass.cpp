@@ -92,80 +92,6 @@ void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
     CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
 }
 
-std::string MultiClassMod::GenerateSkillIncludeString()
-{
-    if (ConfigCrossClassIncludeSkillIDs.empty() == true)
-        return "";
-
-    stringstream generatedStringStream;
-    generatedStringStream << "AND skill NOT IN (";
-    generatedStringStream << GenerateCommaDelimitedStringFromSet(ConfigCrossClassIncludeSkillIDs);
-    generatedStringStream << ")";
-
-    return generatedStringStream.str();
-}
-
-std::string MultiClassMod::GenerateSpellWhereInClauseString(Player* player)
-{
-    uint8 playerClass = player->getClass();
-
-    // Go through the unordered map to pull out class abilities
-    set<uint32> classSpellIDs;
-    for (auto& curPlayerSpell : player->GetSpellMap())
-    {
-        if (ClassSpellsBySpellID.find(curPlayerSpell.first) != ClassSpellsBySpellID.end())
-        {
-            classSpellIDs.insert(curPlayerSpell.first);
-        }
-    }
-    if (classSpellIDs.empty())
-        return "";
-
-    stringstream generatedStringStream;
-    generatedStringStream << "AND spell IN (";
-    generatedStringStream << GenerateCommaDelimitedStringFromSet(classSpellIDs);
-    generatedStringStream << ")";
-    return generatedStringStream.str();
-}
-
-void MultiClassMod::AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction)
-{
-    //uint8 playerClass = player->getClass();
-    //if (ClassSpellsByClassAndSpellID.find(playerClass) == ClassSpellsByClassAndSpellID.end())
-    //{
-    //    LOG_ERROR("module", "multiclass: Error pulling class spell data from the database. Does the 'mod_multi_class_spells' table have records for class {}?", playerClass);
-    //    return;
-    //}
-
-    //// Go through the unordered map to pull out this classes starter abilities
-    //set<uint32> classSpellIDs;
-    //for (auto& curClassSpell : ClassSpellsByClassAndSpellID[playerClass])
-    //{
-    //    if (curClassSpell.second.ReqLevel == 1)
-    //        classSpellIDs.insert(curClassSpell.first);
-    //}
-
-    //// Remove any that are already in the mod spells table
-    //QueryResult queryResult = CharacterDatabase.Query("SELECT `spell` FROM mod_multi_class_character_spell WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), player->getClass());
-    //if (queryResult)
-    //{
-    //    do
-    //    {
-    //        Field* fields = queryResult->Fetch();
-    //        uint32 spellID = fields[0].Get<uint32>();
-
-    //        if (classSpellIDs.find(spellID) != classSpellIDs.end())
-    //            classSpellIDs.erase(spellID);
-    //    } while (queryResult->NextRow());
-    //}
-
-    //// Add them if they aren't empty
-    //for (auto& spellID : classSpellIDs)
-    //{
-    //    transaction->Append("INSERT INTO `mod_multi_class_character_spell` (`guid`, `class`, `spell`, `specMask`) VALUES ({}, {}, {}, 255)", player->GetGUID().GetCounter(), player->getClass(), spellID);
-    //}
-}
-
 void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_characters` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
@@ -247,9 +173,39 @@ void MultiClassMod::MoveClassSpellsToModSpellsTable(Player* player, CharacterDat
 
 void MultiClassMod::MoveClassSkillsToModSkillsTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
+    // Purge old skill list in mod table
     transaction->Append("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
-    transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) SELECT guid, {}, skill, value, max FROM character_skills WHERE GUID = {} {}", player->getClass(), player->GetGUID().GetCounter(), GenerateSkillIncludeString());
-    transaction->Append("DELETE FROM `character_skills` WHERE guid = {} {}", player->GetGUID().GetCounter(), GenerateSkillIncludeString());
+
+    // Pull out the skills
+    QueryResult queryResult = CharacterDatabase.Query("SELECT skill, value, max FROM character_skills WHERE guid = {}", player->GetGUID().GetCounter());
+    if (queryResult)
+    {
+        do
+        {
+            // Pull the data out
+            Field* fields = queryResult->Fetch();
+            uint32 skillID = fields[0].Get<uint32>();
+            uint32 value = fields[1].Get<uint32>();
+            uint32 max = fields[2].Get<uint32>();
+
+            // Only move to the mod table if it's not an "include" skill that stays behind
+            if (ConfigCrossClassIncludeSkillIDs.find(skillID) == ConfigCrossClassIncludeSkillIDs.end())
+            {
+                // Add to the mod table
+                transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) VALUES ({}, {}, {}, {}, {})",
+                    player->GetGUID().GetCounter(),
+                    player->getClass(),
+                    skillID,
+                    value,
+                    max);
+
+                // Remove from the character skill table
+                transaction->Append("DELETE FROM character_skills WHERE guid = {} AND skill = {}",
+                    player->GetGUID().GetCounter(),
+                    skillID);
+            }
+        } while (queryResult->NextRow());
+    }
 }
 
 void MultiClassMod::ReplaceModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction)
@@ -337,6 +293,35 @@ void MultiClassMod::CopyModActionTableIntoCharacterAction(uint32 playerGUID, uin
                 (uint32)actionButton,
                 actionAction,
                 (uint32)actionType);
+
+        } while (queryResult->NextRow());
+    }
+}
+
+void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
+{
+    // Create inserts for all of the coming class skills
+    QueryResult queryResult = CharacterDatabase.Query("SELECT skill, value, max FROM mod_multi_class_character_skills WHERE guid = {} and class = {}", playerGUID, (uint32)pullClassID);
+    if (!queryResult)
+    {
+        LOG_ERROR("module", "multiclass: Error pulling class skill data from the mod table for class {} on guid {}, so the class will have no non-shared skills...", (uint32)pullClassID, playerGUID);
+    }
+    else
+    {
+        do
+        {
+            // Pull the data out
+            Field* fields = queryResult->Fetch();
+            uint32 skillID = fields[0].Get<uint32>();
+            uint32 value = fields[1].Get<uint32>();
+            uint32 max = fields[2].Get<uint32>();
+
+            // Insert it
+            transaction->Append("INSERT INTO `character_skills` (`guid`, `skill`, `value`, `max`) VALUES ({}, {}, {}, {})",
+                playerGUID,
+                skillID,
+                value,
+                max);
 
         } while (queryResult->NextRow());
     }
@@ -517,21 +502,11 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
                 
         CopyModSpellTableIntoCharacterSpells(player->GetGUID().GetCounter(), nextClass, transaction);
         CopyModActionTableIntoCharacterAction(player->GetGUID().GetCounter(), nextClass, transaction);
+        CopyModSkillTableIntoCharacterSkills(player->GetGUID().GetCounter(), nextClass, transaction);
     }
 
     // Commit the transaction
     CharacterDatabase.CommitTransaction(transaction);
-
-    //// If this is a new class, make a new transaction to handle gaps
-    //if (isNew)
-    //{
-    //    CharacterDatabaseTransaction followUpTransaction = CharacterDatabase.BeginTransaction();
-
-    //    // Add any missing starter spells
-    //    AddInsertsForMissingStarterSpells(player, followUpTransaction);
-
-    //    CharacterDatabase.CommitTransaction(followUpTransaction);
-    //}
 
     // Kick the player to force full relog
     //sWorld->KickSession(player->GetSession()->GetAccountId());
