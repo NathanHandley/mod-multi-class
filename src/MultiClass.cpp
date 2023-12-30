@@ -123,7 +123,7 @@ bool MultiClassMod::LoadClassAbilityData()
         talentRateMod = 1.0f / sWorld->getRate(RATE_TALENT);
 
     // Pull in all the new data
-    QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `DefaultReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent` FROM mod_multi_class_spells ORDER BY `Class`, `SpellID`");
+    QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent` FROM mod_multi_class_spells ORDER BY `Class`, `SpellID`");
     if (!queryResult)
     {
         LOG_ERROR("module", "multiclass: Error pulling class spell data from the database.  Does the 'mod_multi_class_spells' table exist in the world database and is populated?");
@@ -137,19 +137,20 @@ bool MultiClassMod::LoadClassAbilityData()
         curClassData.SpellID = fields[0].Get<uint32>();
         curClassData.SpellName = fields[1].Get<std::string>();
         curClassData.SpellSubText = fields[2].Get<std::string>();
-        curClassData.DefaultReqLevel = fields[3].Get<uint16>();
-        uint16 curClass = fields[4].Get<uint16>();
-        std:string curFactionAllowed = fields[5].Get<std::string>();
-        curClassData.IsTalent = fields[6].Get<bool>();
-        curClassData.IsLearnedByTalent = fields[7].Get<bool>();
+        curClassData.ReqSpellID = fields[3].Get<uint32>();
+        curClassData.ReqLevel = fields[4].Get<uint16>();
+        uint16 curClass = fields[5].Get<uint16>();
+        std:string curFactionAllowed = fields[6].Get<std::string>();
+        curClassData.IsTalent = fields[7].Get<bool>();
+        curClassData.IsLearnedByTalent = fields[8].Get<bool>();
 
         // Calculate the level gap for knowing a spell cross-class
-        if (curClassData.IsLearnedByTalent && curClassData.DefaultReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
+        if (curClassData.IsLearnedByTalent && curClassData.ReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
         {
-            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.DefaultReqLevel - 10) * talentRateMod) + ConfigCrossClassAbilityLevelGap + 10;
+            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.ReqLevel - 10) * talentRateMod) + ConfigCrossClassAbilityLevelGap + 10;
         }
         else
-            curClassData.ModifiedReqLevel = curClassData.DefaultReqLevel + ConfigCrossClassAbilityLevelGap;
+            curClassData.ModifiedReqLevel = curClassData.ReqLevel + ConfigCrossClassAbilityLevelGap;
 
         // Determine the faction
         if (curFactionAllowed == "ALLIANCE" || curFactionAllowed == "Alliance" || curFactionAllowed == "alliance")
@@ -272,10 +273,15 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
 
     // Purge the tables that have class-specific data only
     transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
+
+
+
     // TODO: Make the spell table be more dynamic
     transaction->Append("DELETE FROM `character_spell` WHERE guid = {}", player->GetGUID().GetCounter());
+
+
+
     transaction->Append("DELETE FROM `character_skills` WHERE guid = {} {}", player->GetGUID().GetCounter(), alwaysIncludeSkillString);
-    transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_inventory` WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->GetGUID().GetCounter());
@@ -289,6 +295,9 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     // Existing
     else
     {
+        // Only purge the action table if it's an existing
+        transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
+
         // Copy in the stored version for existing
         transaction->Append("UPDATE characters, mod_multi_class_characters SET characters.`class` = mod_multi_class_characters.`class`, characters.`level` = mod_multi_class_characters.`level`, characters.`xp` = mod_multi_class_characters.`xp`, characters.`leveltime` = mod_multi_class_characters.`leveltime`, characters.`rest_bonus` = mod_multi_class_characters.`rest_bonus`, characters.`resettalents_cost` = mod_multi_class_characters.`resettalents_cost`, characters.`resettalents_time` = mod_multi_class_characters.`resettalents_time`, characters.`health` = mod_multi_class_characters.`health`, characters.`power1` = mod_multi_class_characters.`power1`, characters.`power2` = mod_multi_class_characters.`power2`, characters.`power3` = mod_multi_class_characters.`power3`, characters.`power4` = mod_multi_class_characters.`power4`, characters.`power5` = mod_multi_class_characters.`power5`, characters.`power6` = mod_multi_class_characters.`power6`, characters.`power7` = mod_multi_class_characters.`power7`, characters.`talentGroupsCount` = mod_multi_class_characters.`talentGroupsCount`, characters.`activeTalentGroup` = mod_multi_class_characters.`activeTalentGroup` WHERE characters.`guid` = mod_multi_class_characters.`guid` AND mod_multi_class_characters.`class` = {} AND mod_multi_class_characters.`guid` = {}", newClass, player->GetGUID().GetCounter());
         transaction->Append("INSERT INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), newClass);
@@ -314,7 +323,12 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     QueuedClassSwitch queuedClassSwitch = GetQueuedClassSwitch(player);
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
-     
+
+    // Learn new abilities
+
+    // Unlearn invalid abilities
+
+
     // Clear the class switch
     DeleteQueuedClassSwitch(player);
     return true;

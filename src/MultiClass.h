@@ -29,7 +29,8 @@ struct MultiClassSpells
     uint32 SpellID;
     std::string SpellName;
     std::string SpellSubText;
-    uint16 DefaultReqLevel;
+    uint32 ReqSpellID;
+    uint16 ReqLevel;
     uint16 ModifiedReqLevel;
     bool AllowHorde;
     bool AllowAlliance;
