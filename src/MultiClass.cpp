@@ -143,6 +143,7 @@ std::string MultiClassMod::GenerateSpellWhereInClauseString(Player* player)
         isFirstElement = false;
     }
     generatedStringStream << ")";
+    LOG_ERROR("module", "string is {}", generatedStringStream.str());
     return generatedStringStream.str();
 }
 
@@ -511,7 +512,6 @@ public:
             LOG_ERROR("module", "multiclass: Could not change class to {}", classInt);
             handler->PSendSysMessage("ERROR CHANGING CLASS");
         }
-
         return true;
     }
 };
