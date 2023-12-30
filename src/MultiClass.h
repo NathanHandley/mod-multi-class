@@ -77,7 +77,6 @@ public:
         static MultiClassMod instance;
         return &instance;
     }
-
     ~MultiClassMod();
 
     bool LoadClassAbilityData();

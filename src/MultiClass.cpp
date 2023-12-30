@@ -34,6 +34,7 @@ using namespace std;
 
 static bool ConfigEnabled = true;
 static uint8 ConfigCrossClassAbilityLevelGap = 10; // TODO: Load from config
+static uint32 ConfigMaxSkillIDCheck = 1000;         // The highest level of skill ID it will look for when doing copies
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
 
 MultiClassMod::MultiClassMod()
@@ -176,35 +177,36 @@ void MultiClassMod::MoveClassSkillsToModSkillsTable(Player* player, CharacterDat
     // Purge old skill list in mod table
     transaction->Append("DELETE FROM `mod_multi_class_character_skills` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
 
-    // Pull out the skills
-    QueryResult queryResult = CharacterDatabase.Query("SELECT skill, value, max FROM character_skills WHERE guid = {}", player->GetGUID().GetCounter());
-    if (queryResult)
+    // Get all of the known player skills
+    // TODO: This REALLY needs to be done somehow better
+    set<uint32> playerKnownSkills;
+    for (uint32 i = 0; i < ConfigMaxSkillIDCheck; ++i)
     {
-        do
+        if (player->HasSkill(i))
+            playerKnownSkills.insert(i);
+    }
+
+    // Go through all known skills on this player to move them
+    for (uint32 curSkillID : playerKnownSkills)
+    {
+        // Ignore shared skills
+        if (ConfigCrossClassIncludeSkillIDs.find(curSkillID) != ConfigCrossClassIncludeSkillIDs.end())
         {
-            // Pull the data out
-            Field* fields = queryResult->Fetch();
-            uint32 skillID = fields[0].Get<uint32>();
-            uint32 value = fields[1].Get<uint32>();
-            uint32 max = fields[2].Get<uint32>();
+            continue;
+        }
 
-            // Only move to the mod table if it's not an "include" skill that stays behind
-            if (ConfigCrossClassIncludeSkillIDs.find(skillID) == ConfigCrossClassIncludeSkillIDs.end())
-            {
-                // Add to the mod table
-                transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) VALUES ({}, {}, {}, {}, {})",
-                    player->GetGUID().GetCounter(),
-                    player->getClass(),
-                    skillID,
-                    value,
-                    max);
+        // Add to the mod table
+        transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) VALUES ({}, {}, {}, {}, {})",
+            player->GetGUID().GetCounter(),
+            player->getClass(),
+            curSkillID,
+            player->GetPureSkillValue(curSkillID),
+            player->GetPureMaxSkillValue(curSkillID));
 
-                // Remove from the character skill table
-                transaction->Append("DELETE FROM character_skills WHERE guid = {} AND skill = {}",
-                    player->GetGUID().GetCounter(),
-                    skillID);
-            }
-        } while (queryResult->NextRow());
+        // Remove from the character skill table
+        transaction->Append("DELETE FROM character_skills WHERE guid = {} AND skill = {}",
+            player->GetGUID().GetCounter(),
+            curSkillID);
     }
 }
 
