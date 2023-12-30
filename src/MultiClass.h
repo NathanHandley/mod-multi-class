@@ -61,16 +61,17 @@ private:
     std::string GenerateSpellWhereInClauseString(Player* player);
     void AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction);
 
-    void AddTransactionsForCopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForMoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForMoveClassSpellsToModSpellsTable(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForMoveClassSkillsToModSkillsTable(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForReplaceModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForMoveGlyphsToModGlyhpsTable(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForMoveAuraToModAuraTable(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddTransactionsForMoveEquipToModInventoryTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void MoveClassSpellsToModSpellsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void MoveClassSkillsToModSkillsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void ReplaceModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void MoveGlyphsToModGlyhpsTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void MoveAuraToModAuraTable(Player* player, CharacterDatabaseTransaction& transaction);
+    void MoveEquipToModInventoryTable(Player* player, CharacterDatabaseTransaction& transaction);
 
-    void AddTransactionsForCopyModSpellTableIntoClassSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
+    void CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
+    void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
 public:
     static MultiClassMod* instance()
