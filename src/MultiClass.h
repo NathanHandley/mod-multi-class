@@ -61,14 +61,14 @@ private:
     std::string GenerateSpellWhereInClauseString(Player* player);
     void AddInsertsForMissingStarterSpells(Player* player, CharacterDatabaseTransaction& transaction);
 
-    void AddInsertTransactionForModClassCharacter(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassTalentCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassSpellCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassSkillsCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassGlyphsCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassAuraCopy(Player* player, CharacterDatabaseTransaction& transaction);
-    void AddInsertTransactionsForModClassInventoryCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassCharacter(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassTalentCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassSpellCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassSkillsCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassGlyphsCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassAuraCopy(Player* player, CharacterDatabaseTransaction& transaction);
+    void AddTransactionsForModClassInventoryCopy(Player* player, CharacterDatabaseTransaction& transaction);
 
 public:
     static MultiClassMod* instance()
