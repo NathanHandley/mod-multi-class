@@ -126,15 +126,12 @@ map<uint8, set<uint32>> MultiClassMod::GetSpellsKnownByPlayerInAllClasses(Player
     map<uint8, set<uint32>> spellsKnownByClass;
 
     // Pull the current class first
-    QueryResult curClassSpellQueryResult = CharacterDatabase.Query("SELECT spell FROM character_spell WHERE guid = {}", player->GetGUID().GetCounter());
-    if (curClassSpellQueryResult)
+    for (auto& curSpell : player->GetSpellMap())
     {
-        do
-        {
-            Field* fields = curClassSpellQueryResult->Fetch();
-            uint32 returnedSpell = fields[0].Get<uint32>();
-            spellsKnownByClass[player->getClass()].insert(returnedSpell);
-        } while (curClassSpellQueryResult->NextRow());
+        // Skip non-class spells
+        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
+            continue;
+        spellsKnownByClass[player->getClass()].insert(curSpell.first);
     }
 
     // Pull the other class spells
@@ -429,19 +426,6 @@ void MultiClassMod::UpdateCharacterFromModCharacterTable(uint32 playerGUID, uint
 
 void MultiClassMod::CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
 {
-    // Pull the spells already in the table for collision checking
-    set<uint32> existingSpells;
-    QueryResult destinationSpellQueryResult = CharacterDatabase.Query("SELECT spell FROM character_spell WHERE guid = {}", playerGUID);
-    if (destinationSpellQueryResult)
-    {
-        do
-        {
-            Field* fields = destinationSpellQueryResult->Fetch();
-            uint32 spellID = fields[0].Get<uint32>();
-            existingSpells.insert(spellID);
-        } while (destinationSpellQueryResult->NextRow());
-    }
-
     // Create inserts for all of the coming class spells
     QueryResult queryResult = CharacterDatabase.Query("SELECT spell, specMask FROM mod_multi_class_character_spell WHERE guid = {} and class = {}", playerGUID, (uint32)pullClassID);
     if (queryResult)
@@ -453,16 +437,12 @@ void MultiClassMod::CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint
             uint32 spellID = fields[0].Get<uint32>();
             uint8 specMask = fields[1].Get<uint8>();
 
-            // Skip if duplicate
-            if (existingSpells.find(spellID) != existingSpells.end())
-                continue;
-
             // Skip if not valid
             if (ClassSpellIDs.find(spellID) == ClassSpellIDs.end())
                 continue;
 
             // Add it
-            transaction->Append("INSERT INTO character_spell (guid, spell, specMask) VALUES ({}, {}, {})",
+            transaction->Append("INSERT IGNORE INTO character_spell (guid, spell, specMask) VALUES ({}, {}, {})",
                 playerGUID,
                 spellID,
                 (uint32)specMask);
@@ -505,19 +485,6 @@ void MultiClassMod::CopyModActionTableIntoCharacterAction(uint32 playerGUID, uin
 
 void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
 {
-    // Pull the skills already in the table for collision checking
-    set<uint32> existingSkills;
-    QueryResult destinationSkillQueryResult = CharacterDatabase.Query("SELECT skill FROM character_skills WHERE guid = {}", playerGUID);
-    if (destinationSkillQueryResult)
-    {
-        do
-        {
-            Field* fields = destinationSkillQueryResult->Fetch();
-            uint32 skillID = fields[0].Get<uint32>();
-            existingSkills.insert(skillID);
-        } while (destinationSkillQueryResult->NextRow());
-    }
-
     // Create inserts for all of the coming class skills
     QueryResult queryResult = CharacterDatabase.Query("SELECT skill, value, max FROM mod_multi_class_character_skills WHERE guid = {} and class = {}", playerGUID, (uint32)pullClassID);
     if (!queryResult)
@@ -534,12 +501,8 @@ void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint
             uint32 value = fields[1].Get<uint32>();
             uint32 max = fields[2].Get<uint32>();
 
-            // Skip if duplicate
-            if (existingSkills.find(skillID) != existingSkills.end())
-                continue;
-
             // Insert it
-            transaction->Append("INSERT INTO `character_skills` (`guid`, `skill`, `value`, `max`) VALUES ({}, {}, {}, {})",
+            transaction->Append("INSERT IGNORE INTO `character_skills` (`guid`, `skill`, `value`, `max`) VALUES ({}, {}, {}, {})",
                 playerGUID,
                 skillID,
                 value,
