@@ -27,7 +27,7 @@
 class MultiClassSpell
 {
 public:
-    std::set<uint8> ClassIDs;
+    uint8 ClassID;
     uint32 SpellID;
     std::string SpellName;
     std::string SpellSubText;
@@ -38,8 +38,6 @@ public:
     bool AllowAlliance;
     bool IsTalent;
     bool IsLearnedByTalent;
-
-    bool HasClassID(uint8 classID) { return (ClassIDs.find(classID) != ClassIDs.end()); }
 };
 
 struct QueuedClassSwitch
@@ -53,7 +51,8 @@ class MultiClassMod
 private:
     MultiClassMod();
 
-    std::map<uint32, MultiClassSpell> ClassSpellsBySpellID;
+    std::map<uint32, std::map<uint32, MultiClassSpell>> ClassSpellsByClassAndSpellID;
+    std::set<uint32> ClassSpellIDs;
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
@@ -62,7 +61,7 @@ private:
     void DeleteQueuedClassSwitch(Player* player);
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
     std::map<uint8, std::set<uint32>> GetSpellsKnownByPlayerInAllClasses(Player* player);
-    bool IsPlayerEligibleToLearnSpell(Player* player, MultiClassSpell spell, std::map<uint8, uint8> levelByClass);
+    bool IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID, std::map<uint8, uint8> levelByClass);
 
     void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
