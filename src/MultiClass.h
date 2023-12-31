@@ -24,14 +24,15 @@
 #include <set>
 #include <map>
 
-struct MultiClassSpells
+struct MultiClassSpell
 {
+    uint8 ClassID;
     uint32 SpellID;
     std::string SpellName;
     std::string SpellSubText;
     uint32 ReqSpellID;
-    uint16 ReqLevel;
-    uint16 ModifiedReqLevel;
+    uint8 ReqLevel;
+    uint8 ModifiedReqLevel;
     bool AllowHorde;
     bool AllowAlliance;
     bool IsTalent;
@@ -49,8 +50,7 @@ class MultiClassMod
 private:
     MultiClassMod();
 
-    std::map<uint16, std::map<uint32, MultiClassSpells>> ClassSpellsByClassAndSpellID; // Can we delete this?
-    std::map<uint32, MultiClassSpells> ClassSpellsBySpellID;
+    std::map<uint32, MultiClassSpell> ClassSpellsBySpellID;
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
@@ -72,6 +72,8 @@ private:
     void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
+    void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
+
 public:
     static MultiClassMod* instance()
     {
@@ -88,7 +90,7 @@ public:
     bool PerformPlayerDelete(ObjectGuid guid);
 };
 
-std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet);
+std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet); // Can delete?
 
 #define MultiClass MultiClassMod::instance()
 
