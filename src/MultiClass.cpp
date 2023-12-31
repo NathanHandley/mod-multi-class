@@ -17,6 +17,9 @@
 * with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+// TODO: Restrict DK unless level 55 (sConfigMgr->GetOption<int32>("CharacterCreating.MinLevelForHeroicCharacter", 55);)
+// TODO: Show only available race/class combos
+
 #include "Chat.h"
 #include "Configuration/Config.h"
 #include "Opcodes.h"
@@ -303,13 +306,22 @@ void MultiClassMod::UpdateCharacterFromModCharacterTable(uint32 playerGUID, uint
 
 void MultiClassMod::CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
 {
+    // Pull the spells already in the table for collision checking
+    set<uint32> existingSpells;
+    QueryResult destinationSpellQueryResult = CharacterDatabase.Query("SELECT spell FROM character_spell WHERE guid = {}", playerGUID);
+    if (destinationSpellQueryResult)
+    {
+        do
+        {
+            Field* fields = destinationSpellQueryResult->Fetch();
+            uint32 spellID = fields[0].Get<uint32>();
+            existingSpells.insert(spellID);
+        } while (destinationSpellQueryResult->NextRow());
+    }
+
     // Create inserts for all of the coming class spells
     QueryResult queryResult = CharacterDatabase.Query("SELECT spell, specMask FROM mod_multi_class_character_spell WHERE guid = {} and class = {}", playerGUID, (uint32)pullClassID);
-    if (!queryResult)
-    {
-        LOG_ERROR("module", "multiclass: Error pulling class spell data from the mod table for class {} on guid {}, so the class will have no spells...", (uint32)pullClassID, playerGUID);
-    }
-    else
+    if (queryResult)
     {
         do
         {
@@ -318,15 +330,19 @@ void MultiClassMod::CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint
             uint32 spellID = fields[0].Get<uint32>();
             uint8 specMask = fields[1].Get<uint8>();
 
-            // Only add if it's a valid spell
-            if (ClassSpellsBySpellID.find(spellID) != ClassSpellsBySpellID.end())
-            {
-                transaction->Append("INSERT INTO character_spell (guid, spell, specMask) VALUES ({}, {}, {})",
-                    playerGUID,
-                    spellID,
-                    (uint32)specMask);
-            }
+            // Skip if duplicate
+            if (existingSpells.find(spellID) != existingSpells.end())
+                continue;
 
+            // Skip if not valid
+            if (ClassSpellsBySpellID.find(spellID) == ClassSpellsBySpellID.end())
+                continue;
+
+            // Add it
+            transaction->Append("INSERT INTO character_spell (guid, spell, specMask) VALUES ({}, {}, {})",
+                playerGUID,
+                spellID,
+                (uint32)specMask);
         } while (queryResult->NextRow());
     }
 }
@@ -366,6 +382,19 @@ void MultiClassMod::CopyModActionTableIntoCharacterAction(uint32 playerGUID, uin
 
 void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction)
 {
+    // Pull the skills already in the table for collision checking
+    set<uint32> existingSkills;
+    QueryResult destinationSkillQueryResult = CharacterDatabase.Query("SELECT skill FROM character_skills WHERE guid = {}", playerGUID);
+    if (destinationSkillQueryResult)
+    {
+        do
+        {
+            Field* fields = destinationSkillQueryResult->Fetch();
+            uint32 skillID = fields[0].Get<uint32>();
+            existingSkills.insert(skillID);
+        } while (destinationSkillQueryResult->NextRow());
+    }
+
     // Create inserts for all of the coming class skills
     QueryResult queryResult = CharacterDatabase.Query("SELECT skill, value, max FROM mod_multi_class_character_skills WHERE guid = {} and class = {}", playerGUID, (uint32)pullClassID);
     if (!queryResult)
@@ -381,6 +410,10 @@ void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint
             uint32 skillID = fields[0].Get<uint32>();
             uint32 value = fields[1].Get<uint32>();
             uint32 max = fields[2].Get<uint32>();
+
+            // Skip if duplicate
+            if (existingSkills.find(skillID) != existingSkills.end())
+                continue;
 
             // Insert it
             transaction->Append("INSERT INTO `character_skills` (`guid`, `skill`, `value`, `max`) VALUES ({}, {}, {}, {})",
