@@ -37,7 +37,6 @@ using namespace std;
 
 static bool ConfigEnabled = true;
 static bool ConfigDisplayInstructionMessage = true;
-static uint8 ConfigCrossClassAbilityLevelGap = 10; // TODO: Load from config
 static uint32 ConfigMaxSkillIDCheck = 1000;         // The highest level of skill ID it will look for when doing copies
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
 
@@ -459,13 +458,13 @@ bool MultiClassMod::LoadClassAbilityData()
         curClassData.IsTalent = fields[7].Get<bool>();
         curClassData.IsLearnedByTalent = fields[8].Get<bool>();
 
-        // Calculate the level gap for knowing a spell cross-class
+        // Calculate the true required level factoring in the talent rate
         if (curClassData.IsLearnedByTalent && curClassData.ReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
         {
-            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.ReqLevel - 10) * talentRateMod) + ConfigCrossClassAbilityLevelGap + 10;
+            curClassData.ModifiedReqLevel = (uint16)((float)(curClassData.ReqLevel - 10) * talentRateMod) + 10;
         }
         else
-            curClassData.ModifiedReqLevel = curClassData.ReqLevel + ConfigCrossClassAbilityLevelGap;
+            curClassData.ModifiedReqLevel = curClassData.ReqLevel;
 
         // Determine the faction
         if (curFactionAllowed == "ALLIANCE" || curFactionAllowed == "Alliance" || curFactionAllowed == "alliance")
