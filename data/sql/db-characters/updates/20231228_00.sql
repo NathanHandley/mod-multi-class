@@ -18,7 +18,8 @@ CREATE TABLE `mod_multi_class_characters` (
 	`power7` INT(10) UNSIGNED NOT NULL DEFAULT '0',
 	`talentGroupsCount` TINYINT(3) UNSIGNED NOT NULL DEFAULT '1',
 	`activeTalentGroup` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
-	PRIMARY KEY (`guid`, `class`) USING BTREE
+	PRIMARY KEY (`guid`, `class`) USING BTREE,
+	INDEX `idx_guid` (`guid`) USING BTREE
 );
 
 DROP TABLE IF EXISTS `mod_multi_class_character_talent`;
@@ -27,7 +28,9 @@ CREATE TABLE `mod_multi_class_character_talent` (
 	`class` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
 	`spell` INT(10) UNSIGNED NOT NULL,
 	`specMask` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
-	PRIMARY KEY (`guid`, `class`, `spell`) USING BTREE
+	PRIMARY KEY (`guid`, `class`, `spell`) USING BTREE,
+	INDEX `idx_guidclass` (`guid`, `class`) USING BTREE
+	
 );
 
 DROP TABLE IF EXISTS `mod_multi_class_character_aura`;
