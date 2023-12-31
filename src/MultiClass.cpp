@@ -212,7 +212,34 @@ void MultiClassMod::MoveClassSkillsToModSkillsTable(Player* player, CharacterDat
 
 void MultiClassMod::ReplaceModClassActionCopy(Player* player, CharacterDatabaseTransaction& transaction)
 {
+    // Delete the old action entries
     transaction->Append("DELETE FROM `mod_multi_class_character_action` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
+
+    // Save current action buttons
+    // This is closer to a better approach, but can't be done unless action buttons are made available to the mod
+    //QueryResult queryResult = CharacterDatabase.Query("SELECT spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->GetGUID().GetCounter());
+    //if (queryResult)
+    //{
+    //    do
+    //    {
+    //        // Pull the data out
+    //        Field* fields = queryResult->Fetch();
+    //        uint8 actionSpec = fields[0].Get<uint8>();
+    //        uint8 actionButton = fields[1].Get<uint8>();
+    //        uint32 actionAction = fields[2].Get<uint32>();
+    //        uint8 actionType = fields[3].Get<uint8>();
+
+    //        transaction->Append("INSERT INTO `mod_multi_class_character_action` (`guid`, class, `spec`, `button`, `action`, `type`) VALUES ({}, {}, {}, {}, {}, {})",
+    //            player->GetGUID().GetCounter(),
+    //            player->getClass(),
+    //            (uint32)actionSpec,
+    //            (uint32)actionButton,
+    //            actionAction,
+    //            (uint32)actionType);
+
+    //    } while (queryResult->NextRow());
+    //}
+    // Less ideal approach, as it causes a table scan on character_action
     transaction->Append("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
 }
 
@@ -457,12 +484,12 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     if (newClass == player->getClass())
     {
         handler->PSendSysMessage("Class change requested is the current class, so taking no action on the next login.");
-        return true;
+        return false;
     }
     else if (!IsValidRaceClassCombo(newClass, player->getRace()))
     {
         handler->PSendSysMessage("Class change could not be completed because this class and race combo is not enabled on the server.");
-        return true;
+        return false;
     }
 
     // Add the switch event
@@ -546,8 +573,6 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     // Commit the transaction
     CharacterDatabase.CommitTransaction(transaction);
 
-    // Kick the player to force full relog
-    //sWorld->KickSession(player->GetSession()->GetAccountId());
     return true;
 }
 
@@ -713,11 +738,9 @@ public:
         }
 
         Player* player = handler->GetPlayer();
-        if (!MultiClass->MarkClassChangeOnNextLogout(handler, player, classInt))
-        {
-            LOG_ERROR("module", "multiclass: Could not change class to {}", classInt);
-            handler->PSendSysMessage("ERROR CHANGING CLASS");
-        }
+        MultiClass->MarkClassChangeOnNextLogout(handler, player, classInt);
+        
+        // Class change accepted
         return true;
     }
 };
