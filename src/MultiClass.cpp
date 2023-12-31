@@ -174,9 +174,11 @@ bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID,
             continue;
         }
 
-        // A primary class exists and the spell belongs to it, so calculate by going through all of those classes
+        // A primary class exists and the spell belongs to it, so calculate when it can be 
         uint8 primaryClassLevel = levelByClass[spell.ClassID];
-        uint8 eligibleLevel = spell.ModifiedReqLevel;
+        uint8 secondaryClassLevel = player->GetLevel();
+        uint8 primaryCanTeachLevel = spell.ModifiedReqLevel;
+        uint8 secondaryCanLearnLevel = spell.ModifiedReqLevel;
 
         // If there is a gap enabled, modify the eligible level by it
         if (ConfigEnablePrimarySecondaryLevelGap)
@@ -201,16 +203,17 @@ bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID,
                     calcGap = 0;
             }
 
-            // Apply the calculated gap to the eligible level
-            eligibleLevel = eligibleLevel + calcGap;
-
-            // Control to level 1 (lowest level) to avoid out of bounds
-            if (eligibleLevel < 1)
-                eligibleLevel = 1;
+            // Apply the calculated gap to the eligible level, with minimum of 1
+            int8 calcTeachLevel = spell.ModifiedReqLevel + calcGap;
+            if (calcTeachLevel <= 1)
+                calcTeachLevel = 1;
+            int8 calcLearnLevel = spell.ModifiedReqLevel - calcGap;
+            if (calcLearnLevel <= 1)
+                calcLearnLevel = 1;
         }
 
-        // Test the level to see if we can learn it
-        if (primaryClassLevel >= (uint8)eligibleLevel)
+        // Compare the teach/learn levels to see if it can be learned
+        if (primaryClassLevel >= primaryCanTeachLevel && secondaryClassLevel >= secondaryCanLearnLevel)
             return true;
     }
 
@@ -457,11 +460,7 @@ void MultiClassMod::CopyModActionTableIntoCharacterAction(uint32 playerGUID, uin
 
     // Create inserts for all of the coming class action bar buttons
     QueryResult queryResult = CharacterDatabase.Query("SELECT spec, button, `action`, `type` FROM mod_multi_class_character_action WHERE guid = {} and class = {}", playerGUID, (uint32)pullClassID);
-    if (!queryResult)
-    {
-        LOG_ERROR("module", "multiclass: Error pulling action bar data from the mod table for class {} on guid {}, so the class will have action bar buttons...", (uint32)pullClassID, playerGUID);
-    }
-    else
+    if (queryResult)
     {
         do
         {
@@ -748,6 +747,13 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
 
+    // Clear the class switch
+    DeleteQueuedClassSwitch(player);
+    return true;
+}
+
+void MultiClassMod::PerformKnownSpellUpdateFromOtherClasses(Player* player)
+{
     // Handle cross class spells
     if (ConfigEnableCrossClassSpellLearning)
     {
@@ -769,10 +775,6 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
                 player->learnSpell(spellToLearn);
         }
     }
-
-    // Clear the class switch
-    DeleteQueuedClassSwitch(player);
-    return true;
 }
 
 bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
@@ -813,6 +815,8 @@ public:
         {
             LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on login for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
         }
+
+        MultiClass->PerformKnownSpellUpdateFromOtherClasses(player);
     }
 
     void OnLogout(Player* player)
@@ -830,7 +834,14 @@ public:
     {
         if (ConfigEnabled == false)
             return;
+        MultiClass->PerformPlayerDelete(guid);        
+    }
 
+    void OnLevelChanged(Player* player, uint8 /*oldLevel*/)
+    {
+        if (ConfigEnabled == false)
+            return;
+        MultiClass->PerformKnownSpellUpdateFromOtherClasses(player);
     }
 };
 

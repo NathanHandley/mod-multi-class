@@ -93,6 +93,7 @@ public:
     bool PerformQueuedClassSwitchOnLogout(Player* player);
     bool PerformQueuedClassSwitchOnLogin(Player* player);
     bool PerformPlayerDelete(ObjectGuid guid);
+    void PerformKnownSpellUpdateFromOtherClasses(Player* player);
 };
 
 std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet); // Can delete?
