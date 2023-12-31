@@ -183,33 +183,27 @@ bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID,
         // If there is a gap enabled, modify the eligible level by it
         if (ConfigEnablePrimarySecondaryLevelGap)
         {
-            // Disable learning of abilities when the gap is higher that the primary class level
-            if ((int8)primaryClassLevel - ConfigEnablePrimarySecondaryLevelGap <= 0)
-                continue;
-
             // Start by calculating the level gap
             int8 calcGap = ConfigSecondaryClassPrimarySpellLearnLevelGap;
 
             // How far is the primary class from the walkdown line?
-            int8 primaryClassToWalkdownDifference = ConfigPrimaryClassSpellLearnWalkdownLevelStart - (int8)primaryClassLevel;
+            int8 primaryClassToWalkdownDifference = (int8)primaryClassLevel - ConfigPrimaryClassSpellLearnWalkdownLevelStart;
 
             // If it's within gap, modify the walkdown
-            if (primaryClassToWalkdownDifference < calcGap)
+            if (primaryClassToWalkdownDifference > 0)
             {
-                calcGap = primaryClassToWalkdownDifference;
+                calcGap = ConfigSecondaryClassPrimarySpellLearnLevelGap - primaryClassToWalkdownDifference;
 
                 // If the gap can't be negative, stop it at zero
-                if (!ConfigEnableGapWalkDownIntoNegative)
+                if (!ConfigEnableGapWalkDownIntoNegative && calcGap < 0)
                     calcGap = 0;
             }
 
-            // Apply the calculated gap to the eligible level, with minimum of 1
-            int8 calcTeachLevel = spell.ModifiedReqLevel + calcGap;
-            if (calcTeachLevel <= 1)
-                calcTeachLevel = 1;
-            int8 calcLearnLevel = spell.ModifiedReqLevel - calcGap;
-            if (calcLearnLevel <= 1)
+            // Determine the level this can be learned
+            int8 calcLearnLevel = (int8)spell.ModifiedReqLevel + calcGap;
+            if (calcLearnLevel < 1)
                 calcLearnLevel = 1;
+            secondaryCanLearnLevel = calcLearnLevel;
         }
 
         // Compare the teach/learn levels to see if it can be learned
