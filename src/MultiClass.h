@@ -85,6 +85,7 @@ public:
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
     bool PerformQueuedClassSwitchOnLogout(Player* player);
     bool PerformQueuedClassSwitchOnLogin(Player* player);
+    bool PerformPlayerDelete(ObjectGuid guid);
 };
 
 std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet);

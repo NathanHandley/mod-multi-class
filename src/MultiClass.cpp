@@ -554,6 +554,9 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
 
         // Update the character core table to reflect the switch
         transaction->Append("UPDATE characters SET `class` = {}, `level` = {}, `xp` = 0, `leveltime` = 0, `rest_bonus` = 0, `resettalents_cost` = 0, `resettalents_time` = 0, health = {}, power1 = {}, power2 = 0, power3 = 0, power4 = 100, power5 = 0, power6 = 0, power7 = 0, `talentGroupsCount` = 1, `activeTalentGroup` = 0 WHERE guid = {}", nextClass, startLevel, classInfo.basehealth, classInfo.basemana, player->GetGUID().GetCounter());
+
+        // Give blank action mappings
+        transaction->Append("DELETE FROM `character_action` WHERE guid = {}", player->GetGUID().GetCounter());
     }
     // Existing
     else
@@ -593,6 +596,25 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     return true;
 }
 
+bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
+{
+    // Delete every mod table record with this player guid
+    uint32 playerGUID = guid.GetCounter();
+
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+    transaction->Append("DELETE FROM mod_multi_class_characters WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_talent WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_aura WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_spell WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_skills WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_next_switch_class WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
+    CharacterDatabase.CommitTransaction(transaction);
+    return true;
+}
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -620,6 +642,13 @@ public:
         {
             LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
         }
+    }
+
+    void OnDelete(ObjectGuid guid, uint32 /*accountId*/)
+    {
+        if (ConfigEnabled == false)
+            return;
+
     }
 };
 
