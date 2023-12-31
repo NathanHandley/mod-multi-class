@@ -39,6 +39,7 @@ using namespace std;
 static bool ConfigEnabled = true;
 static bool ConfigDisplayInstructionMessage = true;
 static uint32 ConfigMaxSkillIDCheck = 1000;          // The highest level of skill ID it will look for when doing copies
+static bool ConfigEnableCrossClassSpellLearning = true; // If true, the player can learn spells from other classes
 static bool ConfigEnablePrimarySecondaryLevelGap = true;    // If true, a level gap exists between when a secondary class can learn a primary class spell
 static int8 ConfigSecondaryClassPrimarySpellLearnLevelGap = 10; // How many levels down primary class spells can be learned on a secondary class
 static int8 ConfigPrimaryClassSpellLearnWalkdownLevelStart = 80; // The level in which every subsequent level will reduce the level gap rule by 1
@@ -99,6 +100,111 @@ QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
 void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
 {
     CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
+}
+
+// Returns any class levels for classes that the player is not
+map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* player)
+{
+    map<uint8, uint8> levelByClass;
+    QueryResult classQueryResult = CharacterDatabase.Query("SELECT `class`, `level` FROM mod_multi_class_characters WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
+    if (classQueryResult)
+    {
+        Field* fields = classQueryResult->Fetch();
+        uint8 returnedClass = fields[0].Get<uint8>();
+        uint8 returnedLevel = fields[1].Get<uint8>();
+        levelByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
+    }
+    return levelByClass;
+}
+
+// Returns all of the spells known by the player in all classes
+map<uint8, set<uint32>> MultiClassMod::GetSpellsKnownByPlayerInAllClasses(Player* player)
+{
+    map<uint8, set<uint32>> spellsKnownByClass;
+
+    // Pull the current class first
+    QueryResult curClassSpellQueryResult = CharacterDatabase.Query("SELECT spell FROM character_spell WHERE guid = {}", player->GetGUID().GetCounter());
+    if (curClassSpellQueryResult)
+    {
+        Field* fields = curClassSpellQueryResult->Fetch();
+        uint32 returnedSpell = fields[0].Get<uint32>();
+        spellsKnownByClass[player->getClass()].insert(returnedSpell);
+    }
+
+    // Pull the other class spells
+    QueryResult otherClassSpellQueryResult = CharacterDatabase.Query("SELECT spell FROM mod_multi_class_character_spell WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
+    if (otherClassSpellQueryResult)
+    {
+        Field* fields = otherClassSpellQueryResult->Fetch();
+        uint8 returnedClass = fields[0].Get<uint8>();
+        uint32 returnedSpell = fields[1].Get<uint32>();
+        spellsKnownByClass[returnedClass].insert(returnedSpell);
+    }
+
+    return spellsKnownByClass;
+}
+
+// Returns true if the spell is eligible to be learned
+bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, MultiClassSpell spell, std::map<uint8, uint8> levelByClass)
+{
+    // For same-class spells, only need to meet the level requirement
+    if (spell.HasClassID(player->getClass()))
+    {
+        if (player->GetLevel() >= spell.ReqLevel)
+            return true;
+        else
+            return false;
+    }
+
+    // If the player doesn't have a character in that class, they can't learn it
+    bool foundClass = false;
+    for (auto& spellClassIDs : spell.ClassIDs)
+    {
+        if (levelByClass.find(spellClassIDs) != levelByClass.end())
+        {
+            foundClass = true;
+            break;
+        }
+    }
+    if (!foundClass)
+        return false;
+
+    // A primary class exists and the spell belongs to it, so calculate
+    uint8 primaryClassLevel = levelByClass[spell.ClassID];
+    uint8 eligibleLevel = spell.ModifiedReqLevel;
+
+    // If there is a gap enabled, modify the eligible level by it
+    if (ConfigEnablePrimarySecondaryLevelGap)
+    {
+        // Start by calculating the level gap
+        int8 calcGap = ConfigSecondaryClassPrimarySpellLearnLevelGap;
+
+        // How far is the primary class from the walkdown line?
+        int8 primaryClassToWalkdownDifference = ConfigPrimaryClassSpellLearnWalkdownLevelStart - (int8)primaryClassLevel;
+
+        // If it's within gap, modify the walkdown
+        if (primaryClassToWalkdownDifference < calcGap)
+        {
+            calcGap = primaryClassToWalkdownDifference;
+
+            // If the gap can't be negative, stop it at zero
+            if (!ConfigEnableGapWalkDownIntoNegative)
+                calcGap = 0;
+        }
+
+        // Apply the calculated gap to the eligible level
+        eligibleLevel = eligibleLevel + calcGap;
+
+        // Control to level 1 (lowest level) to avoid out of bounds
+        if (eligibleLevel < 1)
+            eligibleLevel = 1;
+    }
+
+    // Test the level to see if we can learn it
+    if (primaryClassLevel >= (uint8)eligibleLevel)
+        return true;
+    else
+        return false;
 }
 
 void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction)
@@ -431,40 +537,24 @@ void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint
 }
 
 // Returns a list of what spells should be learned and unlearned for a class
-void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns)
+void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32>& outSpellUnlearns, list<int32>& outSpellLearns)
 {
     // Clear out parameters
     outSpellUnlearns.clear();
     outSpellLearns.clear();
 
     // Get the levels of every class, except this class
-    map<uint8, uint8> levelByClass;
-    QueryResult classQueryResult = CharacterDatabase.Query("SELECT `class`, `level` FROM mod_multi_class_characters WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
-    if (classQueryResult)
-    {
-        Field* fields = classQueryResult->Fetch();
-        uint8 returnedClass = fields[0].Get<uint8>();
-        uint8 returnedLevel = fields[1].Get<uint8>();
-        levelByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
-    }
+    map<uint8, uint8> levelByClass = GetOtherClassLevelsByClassForPlayer(player);
     if (levelByClass.empty() == true)
         return;
 
     // Pull the spells for all classes
-    map<uint8, set<uint32>> spellsKnownByClass;
-    QueryResult spellQueryResult = CharacterDatabase.Query("SELECT `class`, spell FROM character_spell WHERE guid = {}", player->GetGUID().GetCounter());
-    if (spellQueryResult)
-    {
-        Field* fields = spellQueryResult->Fetch();
-        uint8 returnedClass = fields[0].Get<uint8>();
-        uint32 returnedSpell = fields[1].Get<uint32>();
-        spellsKnownByClass[returnedClass].insert(returnedSpell);
-    }
+    map<uint8, set<uint32>> spellsKnownByClass = GetSpellsKnownByPlayerInAllClasses(player);
 
     // Go through all of the spells to see what needs to be added or removed
-    for (auto& classList : spellsKnownByClass)
+    for (auto& classSpellList : spellsKnownByClass)
     {
-        for (auto& spellID : classList.second)
+        for (auto& spellID : classSpellList.second)
         {
             // Skip if it's not a class spell
             if (ClassSpellsBySpellID.find(spellID) == ClassSpellsBySpellID.end())
@@ -473,88 +563,25 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<
             // Grab the spell details
             MultiClassSpell curSpell = ClassSpellsBySpellID[spellID];
 
-            // Skip spells that are the same class as the player
-            if (curSpell.ClassID == player->getClass())
-                continue;
+            // See if it is eligible for learning
+            bool isPlayerEligibleToLearnSpell = IsPlayerEligibleToLearnSpell(player, curSpell, levelByClass);
 
-            // If this list is for this class, look to see if it should be removed
-            if (classList.first == player->getClass())
+            // If the player has the spell and is ineligible, remove it
+            if (!isPlayerEligibleToLearnSpell && spellsKnownByClass[player->getClass()].find(spellID) != spellsKnownByClass[player->getClass()].end())
             {
-                // Go through the spell list again
-                bool foundSpell = false;
-                for (auto& otherClassList : spellsKnownByClass)
-                {
-                    // Skip if the list class isn't the same as the spell class
-                    if (otherClassList.first != curSpell.ClassID)
-                        continue;
-
-                    // The class matches, so mark found if it's in the list
-                    if (otherClassList.second.find(spellID) != otherClassList.second.end())
-                    {
-                        foundSpell = true;
-                        break;
-                    }
-                }
-                if (!foundSpell)
-                {
-                    outSpellUnlearns.push_back(spellID);
-                }
-
+                outSpellUnlearns.push_back(spellID);
             }
 
-            // If this list is for another class, determine if it should be added
-            else
+            // If the player does not have the spell, but is eligible, add it
+            else if (isPlayerEligibleToLearnSpell && spellsKnownByClass[player->getClass()].find(spellID) == spellsKnownByClass[player->getClass()].end())
             {
-                // Skip if the player doesn't have a class of the spell
-                if (levelByClass.find(curSpell.ClassID) == levelByClass.end())
-                    continue;
-
-                // Skip if the player already has the spell
-                if (spellsKnownByClass[player->getClass()].find(spellID) != spellsKnownByClass[player->getClass()].end)
-                    continue;
-
-                // Determine what level the player could learn this
-                uint8 primaryClassLevel = levelByClass[curSpell.ClassID];
-                uint8 eligibleLevel = curSpell.ModifiedReqLevel;
-
-                // If there is a gap enabled, modify the eligible level by it
-                if (ConfigEnablePrimarySecondaryLevelGap)
-                {
-                    // Start by calculating the level gap
-                    int8 calcGap = ConfigSecondaryClassPrimarySpellLearnLevelGap;
-
-                    // How far is the primary class from the walkdown line?
-                    int8 primaryClassToWalkdownDifference = ConfigPrimaryClassSpellLearnWalkdownLevelStart - (int8)primaryClassLevel;
-                    
-                    // If it's within gap, modify the walkdown
-                    if (primaryClassToWalkdownDifference < calcGap)
-                    {
-                        calcGap = primaryClassToWalkdownDifference;
-
-                        // If the gap can't be negative, stop it at zero
-                        if (!ConfigEnableGapWalkDownIntoNegative)
-                            calcGap = 0;
-                    }
-
-                    // Apply the calculated gap to the eligible level
-                    eligibleLevel = eligibleLevel + calcGap;
-
-                    // Control to level 1 (lowest level) to avoid out of bounds
-                    if (eligibleLevel < 1)
-                        eligibleLevel = 1;
-                }
-
-                // Test the level to see if we can learn it
-                if (primaryClassLevel >= (uint8)eligibleLevel)
-                    outSpellLearns.push_back(spellID);
+                outSpellLearns.push_back(spellID);
             }
         }
     }
 
-    // Go through the add and remove lists to see what can be removed from them due to chain learn spells
-    // TODO: re-review above first
-  
-
+    // Reconcile the add / remove queues
+    // Precursors
 }
 
 // (Re)populates the ability data for the classes
@@ -742,10 +769,25 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
 
-    // Learn new abilities
+    // Handle cross class spells
+    if (ConfigEnableCrossClassSpellLearning)
+    {
+        list<int32> spellsToUnlearn;
+        list<int32> spellsToLearn;
+        GetSpellLearnAndUnlearnsForPlayer(player, spellsToUnlearn, spellsToLearn);
 
-    // Unlearn invalid abilities
+        // Perform unlearns
+        for (auto& spellToUnlearn : spellsToUnlearn)
+        {
+            player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
+        }
 
+        // Perform learns
+        for (auto& spellToLearn : spellsToLearn)
+        {
+            player->learnSpell(spellToLearn);
+        }
+    }
 
     // Clear the class switch
     DeleteQueuedClassSwitch(player);

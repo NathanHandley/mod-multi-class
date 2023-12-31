@@ -24,9 +24,10 @@
 #include <set>
 #include <map>
 
-struct MultiClassSpell
+class MultiClassSpell
 {
-    uint8 ClassID;
+public:
+    std::set<uint8> ClassIDs;
     uint32 SpellID;
     std::string SpellName;
     std::string SpellSubText;
@@ -37,6 +38,8 @@ struct MultiClassSpell
     bool AllowAlliance;
     bool IsTalent;
     bool IsLearnedByTalent;
+
+    bool HasClassID(uint8 classID) { return (ClassIDs.find(classID) != ClassIDs.end()); }
 };
 
 struct QueuedClassSwitch
@@ -57,6 +60,9 @@ private:
     void QueueClassSwitch(Player* player, uint8 nextClass);
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
+    std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
+    std::map<uint8, std::set<uint32>> GetSpellsKnownByPlayerInAllClasses(Player* player);
+    bool IsPlayerEligibleToLearnSpell(Player* player, MultiClassSpell spell, std::map<uint8, uint8> levelByClass);
 
     void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
