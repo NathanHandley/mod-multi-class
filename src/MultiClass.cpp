@@ -33,6 +33,7 @@ using namespace Acore::ChatCommands;
 using namespace std;
 
 static bool ConfigEnabled = true;
+static bool ConfigDisplayInstructionMessage = true;
 static uint8 ConfigCrossClassAbilityLevelGap = 10; // TODO: Load from config
 static uint32 ConfigMaxSkillIDCheck = 1000;         // The highest level of skill ID it will look for when doing copies
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
@@ -625,7 +626,10 @@ public:
         if (ConfigEnabled == false)
             return;
 
-	    ChatHandler(player->GetSession()).SendSysMessage("This server is running the |cff4CFF00MultiClass |rmodule.");
+        if (ConfigDisplayInstructionMessage)
+        {
+            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class change |rto change classes.");
+        }	    
 
         if (!MultiClass->PerformQueuedClassSwitchOnLogin(player))
         {
