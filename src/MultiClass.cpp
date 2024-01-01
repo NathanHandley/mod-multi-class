@@ -255,17 +255,21 @@ void MultiClassMod::MoveTalentsToModTalentsTable(Player* player, CharacterDataba
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
 
-    for (auto& curTalent : player->GetTalentMap())
-    {
-        transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) VALUES ({}, {}, {}, {})",
-            player->GetGUID().GetCounter(),
-            player->getClass(),
-            curTalent.second->talentID,
-            (uint32)curTalent.second->specMask);
-    }
+    //for (auto& curTalent : player->GetTalentMap())
+    //{
+    //    if (curTalent.second->State == PLAYERSPELL_UNCHANGED || curTalent.second->State == PLAYERSPELL_NEW)
+    //    {
+    //        transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) VALUES ({}, {}, {}, {})",
+    //            player->GetGUID().GetCounter(),
+    //            player->getClass(),
+    //            curTalent.second->talentID,
+    //            (uint32)curTalent.second->specMask);
+    //    }
+    //}
 
-    // Delete the previous talents in the character table
-    transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());
+    //// Delete the previous talents in the character table
+    transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());    
 }
 void MultiClassMod::MoveClassSpellsToModSpellsTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
@@ -955,6 +959,7 @@ public:
 
         Player* player = handler->GetPlayer();
         MultiClass->MarkClassChangeOnNextLogout(handler, player, classInt);
+        player->SaveToDB(false, false);
         
         // Class change accepted
         return true;
