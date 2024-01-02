@@ -24,6 +24,9 @@
 #include <set>
 #include <map>
 
+// Used for storing spells to always learn
+#define CLASS_LEARNPOOL = 99
+
 class MultiClassSpell
 {
 public:

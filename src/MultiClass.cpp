@@ -39,10 +39,6 @@ static bool ConfigEnabled = true;
 static bool ConfigDisplayInstructionMessage = true;
 static uint32 ConfigMaxSkillIDCheck = 1000;          // The highest level of skill ID it will look for when doing copies
 static bool ConfigEnableCrossClassSpellLearning = true; // If true, the player can learn spells from other classes
-static bool ConfigEnablePrimarySecondaryLevelGap = true;    // If true, a level gap exists between when a secondary class can learn a primary class spell
-static int8 ConfigSecondaryClassPrimarySpellLearnLevelGap = 10; // How many levels down primary class spells can be learned on a secondary class
-static int8 ConfigPrimaryClassSpellLearnWalkdownLevelStart = 80; // The level in which every subsequent level will reduce the level gap rule by 1
-static bool ConfigEnableGapWalkDownIntoNegative = true;    // If true, the gap can go into the negatives if the walkdown pushes it under 0
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
 
 MultiClassMod::MultiClassMod()
@@ -180,32 +176,6 @@ bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID,
         uint8 primaryCanTeachLevel = spell.ModifiedReqLevel;
         uint8 secondaryCanLearnLevel = spell.ModifiedReqLevel;
 
-        // If there is a gap enabled, modify the eligible level by it
-        if (ConfigEnablePrimarySecondaryLevelGap)
-        {
-            // Start by calculating the level gap
-            int8 calcGap = ConfigSecondaryClassPrimarySpellLearnLevelGap;
-
-            // How far is the primary class from the walkdown line?
-            int8 primaryClassToWalkdownDifference = (int8)primaryClassLevel - ConfigPrimaryClassSpellLearnWalkdownLevelStart;
-
-            // If it's within gap, modify the walkdown
-            if (primaryClassToWalkdownDifference > 0)
-            {
-                calcGap = ConfigSecondaryClassPrimarySpellLearnLevelGap - primaryClassToWalkdownDifference;
-
-                // If the gap can't be negative, stop it at zero
-                if (!ConfigEnableGapWalkDownIntoNegative && calcGap < 0)
-                    calcGap = 0;
-            }
-
-            // Determine the level this can be learned
-            int8 calcLearnLevel = (int8)spell.ModifiedReqLevel + calcGap;
-            if (calcLearnLevel < 1)
-                calcLearnLevel = 1;
-            secondaryCanLearnLevel = calcLearnLevel;
-        }
-
         // Compare the teach/learn levels to see if it can be learned
         if (primaryClassLevel >= primaryCanTeachLevel && secondaryClassLevel >= secondaryCanLearnLevel)
             return true;
@@ -254,20 +224,6 @@ void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, Chara
 void MultiClassMod::MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
-
-    //for (auto& curTalent : player->GetTalentMap())
-    //{
-    //    if (curTalent.second->State == PLAYERSPELL_UNCHANGED || curTalent.second->State == PLAYERSPELL_NEW)
-    //    {
-    //        transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) VALUES ({}, {}, {}, {})",
-    //            player->GetGUID().GetCounter(),
-    //            player->getClass(),
-    //            curTalent.second->talentID,
-    //            (uint32)curTalent.second->specMask);
-    //    }
-    //}
-
-    //// Delete the previous talents in the character table
     transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());    
 }
