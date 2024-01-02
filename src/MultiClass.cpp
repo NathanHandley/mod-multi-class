@@ -72,7 +72,7 @@ bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
 void MultiClassMod::QueueClassSwitch(Player* player, uint8 nextClass)
 {
     bool isNewClass = !DoesSavedClassDataExistForPlayer(player, nextClass);
-    CharacterDatabase.DirectExecute("INSERT INTO `mod_multi_class_next_switch_class` (guid, nextclass, isnew) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), nextClass, isNewClass);
+    CharacterDatabase.DirectExecute("INSERT IGNORE INTO `mod_multi_class_next_switch_class` (guid, nextclass, isnew) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), nextClass, isNewClass);
 }
 
 QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
@@ -199,7 +199,7 @@ void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, Chara
         uint32 spellID = fields[0].Get<uint32>();
         auto finiteAlways = [](float f) { return std::isfinite(f) ? f : 0.0f; };
 
-        transaction->Append("INSERT INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        transaction->Append("INSERT IGNORE INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
             player->GetGUID().GetCounter(),
             player->getClass(),
             player->getLevel(),
@@ -225,7 +225,7 @@ void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, Chara
 void MultiClassMod::MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_talent` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
-    transaction->Append("INSERT INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("INSERT IGNORE INTO mod_multi_class_character_talent (guid, class, spell, specMask) SELECT guid, {}, spell, specMask FROM character_talent WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_talent` WHERE guid = {}", player->GetGUID().GetCounter());    
 }
 void MultiClassMod::MoveClassSpellsToModSpellsTable(Player* player, CharacterDatabaseTransaction& transaction)
@@ -240,8 +240,8 @@ void MultiClassMod::MoveClassSpellsToModSpellsTable(Player* player, CharacterDat
         if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
             continue;
 
-        // Insert into Mod
-        transaction->Append("INSERT INTO mod_multi_class_character_spell (guid, class, spell, specMask) VALUES ({}, {}, {}, {})",
+        // INSERT IGNORE INTO Mod
+        transaction->Append("INSERT IGNORE INTO mod_multi_class_character_spell (guid, class, spell, specMask) VALUES ({}, {}, {}, {})",
             player->GetGUID().GetCounter(),
             player->getClass(),
             curSpell.first,
@@ -278,7 +278,7 @@ void MultiClassMod::MoveClassSkillsToModSkillsTable(Player* player, CharacterDat
         }
 
         // Add to the mod table
-        transaction->Append("INSERT INTO mod_multi_class_character_skills (guid, class, skill, value, max) VALUES ({}, {}, {}, {}, {})",
+        transaction->Append("INSERT IGNORE INTO mod_multi_class_character_skills (guid, class, skill, value, max) VALUES ({}, {}, {}, {}, {})",
             player->GetGUID().GetCounter(),
             player->getClass(),
             curSkillID,
@@ -311,7 +311,7 @@ void MultiClassMod::ReplaceModClassActionCopy(Player* player, CharacterDatabaseT
     //        uint32 actionAction = fields[2].Get<uint32>();
     //        uint8 actionType = fields[3].Get<uint8>();
 
-    //        transaction->Append("INSERT INTO `mod_multi_class_character_action` (`guid`, class, `spec`, `button`, `action`, `type`) VALUES ({}, {}, {}, {}, {}, {})",
+    //        transaction->Append("INSERT IGNORE INTO `mod_multi_class_character_action` (`guid`, class, `spec`, `button`, `action`, `type`) VALUES ({}, {}, {}, {}, {}, {})",
     //            player->GetGUID().GetCounter(),
     //            player->getClass(),
     //            (uint32)actionSpec,
@@ -322,27 +322,27 @@ void MultiClassMod::ReplaceModClassActionCopy(Player* player, CharacterDatabaseT
     //    } while (queryResult->NextRow());
     //}
     // Less ideal approach, as it causes a table scan on character_action
-    transaction->Append("INSERT INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("INSERT IGNORE INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
 }
 
 void MultiClassMod::MoveGlyphsToModGlyhpsTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_glyphs` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
-    transaction->Append("INSERT INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("INSERT IGNORE INTO mod_multi_class_character_glyphs (guid, class, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, {}, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM character_glyphs WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_glyphs` WHERE guid = {}", player->GetGUID().GetCounter());
 }
 
 void MultiClassMod::MoveAuraToModAuraTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_aura` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
-    transaction->Append("INSERT INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("INSERT IGNORE INTO mod_multi_class_character_aura (guid, class, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, {}, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM character_aura WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_aura` WHERE guid = {}", player->GetGUID().GetCounter());
 }
 
 void MultiClassMod::MoveEquipToModInventoryTable(Player* player, CharacterDatabaseTransaction& transaction)
 {
     transaction->Append("DELETE FROM `mod_multi_class_character_inventory` WHERE guid = {} AND class = {} AND `bag` = 0 AND `slot` <= 18;", player->GetGUID().GetCounter(), player->getClass());
-    transaction->Append("INSERT INTO `mod_multi_class_character_inventory` (`guid`, `class`, `bag`, `slot`, `item`) SELECT `guid`, {}, `bag`, `slot`, `item` FROM character_inventory WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("INSERT IGNORE INTO `mod_multi_class_character_inventory` (`guid`, `class`, `bag`, `slot`, `item`) SELECT `guid`, {}, `bag`, `slot`, `item` FROM character_inventory WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->getClass(), player->GetGUID().GetCounter());
     transaction->Append("DELETE FROM `character_inventory` WHERE guid = {} AND `bag` = 0 AND `slot` <= 18", player->GetGUID().GetCounter());
 }
 
@@ -426,7 +426,7 @@ void MultiClassMod::CopyModActionTableIntoCharacterAction(uint32 playerGUID, uin
             uint32 actionAction = fields[2].Get<uint32>();
             uint8 actionType = fields[3].Get<uint8>();
 
-            transaction->Append("INSERT INTO `character_action` (`guid`, `spec`, `button`, `action`, `type`) VALUES ({}, {}, {}, {}, {})",
+            transaction->Append("INSERT IGNORE INTO `character_action` (`guid`, `spec`, `button`, `action`, `type`) VALUES ({}, {}, {}, {}, {})",
                 playerGUID,
                 (uint32)actionSpec,
                 (uint32)actionButton,
@@ -511,24 +511,23 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
     // Precursors
 }
 
-uint8 MultiClassMod::GetTokenCountToIssueForClass(Player* player, uint8 issueClass)
+uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player)
 {
-    uint8 playersIssueClassLevel = 1;
+    uint8 playersIssueClassLevel = player->GetLevel();
     uint8 tokensIssued = 0;
 
-    // Gather already issued amount and class level, if available
-    QueryResult classQueryResult = CharacterDatabase.Query("SELECT `level`, `tokensIssued` FROM mod_multi_class_characters WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), issueClass);
-    if (classQueryResult && classQueryResult->GetRowCount() > 0)
+    QueryResult tokenQueryResult = CharacterDatabase.Query("SELECT `tokensIssued` FROM mod_multi_class_character_tokens WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), player->getClass());
+    if (tokenQueryResult && tokenQueryResult->GetRowCount() > 0)
     {
-        Field* fields = classQueryResult->Fetch();
-        playersIssueClassLevel = fields[0].Get<uint8>();
-        tokensIssued = fields[1].Get<uint8>();
+        Field* fields = tokenQueryResult->Fetch();
+        tokensIssued = fields[0].Get<uint8>();
     }
-
-    // If the passed player is the class in question, use that value because it would be higher
-    if (player->getClass() == issueClass)
+    else
     {
-        playersIssueClassLevel = player->GetLevel();
+        // No record found, so make a blank one
+        CharacterDatabase.DirectExecute("INSERT IGNORE INTO mod_multi_class_character_tokens (guid, class, tokensIssued) VALUES ({}, {}, 0)",
+            player->GetGUID().GetCounter(),
+            player->getClass());
     }
 
     // Calculate the number of tokens to issue
@@ -537,6 +536,28 @@ uint8 MultiClassMod::GetTokenCountToIssueForClass(Player* player, uint8 issueCla
         return tokensToIssueTotal - tokensIssued;
     else
         return 0;
+}
+
+void MultiClassMod::UpdateTokenIssueCountForPlayer(Player* player, uint8 tokenCount)
+{
+    QueryResult tokenQueryResult = CharacterDatabase.Query("SELECT `tokensIssued` FROM mod_multi_class_character_tokens WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), player->getClass());
+    if (!tokenQueryResult || tokenQueryResult->GetRowCount() == 0)
+    {
+        CharacterDatabase.DirectExecute("INSERT IGNORE INTO mod_multi_class_character_tokens (guid, class, tokensIssued) VALUES ({}, {}, {})",
+            player->GetGUID().GetCounter(),
+            player->getClass(),
+            tokenCount);
+    }
+    else
+    {
+        // Add to the existing and save that
+        Field* fields = tokenQueryResult->Fetch();
+        uint8 tokensIssuedAlready = fields[0].Get<uint8>();
+        CharacterDatabase.DirectExecute("UPDATE mod_multi_class_character_tokens SET tokensIssued = {} WHERE guid = {} AND class = {}",
+            tokenCount + tokensIssuedAlready,
+            player->GetGUID().GetCounter(),
+            player->getClass());
+    }
 }
 
 // (Re)populates the ability data for the classes
@@ -711,10 +732,10 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
         CopyModActionTableIntoCharacterAction(player->GetGUID().GetCounter(), nextClass, transaction);
         CopyModSkillTableIntoCharacterSkills(player->GetGUID().GetCounter(), nextClass, transaction);
 
-        transaction->Append("INSERT INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
-        transaction->Append("INSERT INTO character_glyphs (guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM mod_multi_class_character_glyphs WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
-        transaction->Append("INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM mod_multi_class_character_aura WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
-        transaction->Append("INSERT INTO `character_inventory` (`guid`, `bag`, `slot`, `item`) SELECT `guid`, `bag`, `slot`, `item` FROM mod_multi_class_character_inventory WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
+        transaction->Append("INSERT IGNORE INTO character_talent (guid, spell, specMask) SELECT guid, spell, specMask FROM mod_multi_class_character_talent WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
+        transaction->Append("INSERT IGNORE INTO character_glyphs (guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6) SELECT guid, talentGroup, glyph1, glyph2, glyph3, glyph4, glyph5, glyph6 FROM mod_multi_class_character_glyphs WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
+        transaction->Append("INSERT IGNORE INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges) SELECT guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, stackCount, amount0, amount1, amount2, base_amount0, base_amount1, base_amount2, maxDuration, remainTime, remainCharges FROM mod_multi_class_character_aura WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
+        transaction->Append("INSERT IGNORE INTO `character_inventory` (`guid`, `bag`, `slot`, `item`) SELECT `guid`, `bag`, `slot`, `item` FROM mod_multi_class_character_inventory WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), nextClass);
     }
 
     // Commit the transaction
@@ -763,7 +784,7 @@ void MultiClassMod::PerformKnownSpellUpdateFromOtherClasses(Player* player)
 bool MultiClassMod::PerformTokenIssuesForCurrentClass(Player* player)
 {
     // Give tokens if there are any to give
-    uint8 tokenCountToIssue = GetTokenCountToIssueForClass(player, player->getClass());
+    uint8 tokenCountToIssue = GetTokenCountToIssueForPlayer(player);
     if (tokenCountToIssue > 0)
     {
         uint32 itemIDofToken;
@@ -796,7 +817,7 @@ bool MultiClassMod::PerformTokenIssuesForCurrentClass(Player* player)
         }
 
         // Update the token issue amount in the database
-        
+        UpdateTokenIssueCountForPlayer(player, tokenCountToIssue);
     }
 
     return true;
@@ -817,6 +838,7 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_tokens WHERE guid = {}", playerGUID);
     CharacterDatabase.CommitTransaction(transaction);
     return true;
 }

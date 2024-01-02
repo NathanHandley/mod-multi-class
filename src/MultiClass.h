@@ -81,7 +81,8 @@ private:
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
     void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
-    uint8 GetTokenCountToIssueForClass(Player* player, uint8 issueClass);
+    uint8 GetTokenCountToIssueForPlayer(Player* player);
+    void UpdateTokenIssueCountForPlayer(Player* player, uint8 tokenCount);
 
 public:
     static MultiClassMod* instance()
