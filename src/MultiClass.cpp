@@ -40,6 +40,7 @@ static bool ConfigDisplayInstructionMessage = true;
 static uint32 ConfigMaxSkillIDCheck = 1000;          // The highest level of skill ID it will look for when doing copies
 static bool ConfigEnableCrossClassSpellLearning = true; // If true, the player can learn spells from other classes
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
+static uint8 ConfigLevelsPerToken = 10;             // How many levels per token issued
 
 MultiClassMod::MultiClassMod()
 {
@@ -510,6 +511,34 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
     // Precursors
 }
 
+uint8 MultiClassMod::GetTokenCountToIssueForClass(Player* player, uint8 issueClass)
+{
+    uint8 playersIssueClassLevel = 1;
+    uint8 tokensIssued = 0;
+
+    // Gather already issued amount and class level, if available
+    QueryResult classQueryResult = CharacterDatabase.Query("SELECT `level`, `tokensIssued` FROM mod_multi_class_characters WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), issueClass);
+    if (classQueryResult && classQueryResult->GetRowCount() > 0)
+    {
+        Field* fields = classQueryResult->Fetch();
+        playersIssueClassLevel = fields[0].Get<uint8>();
+        tokensIssued = fields[1].Get<uint8>();
+    }
+
+    // If the passed player is the class in question, use that value because it would be higher
+    if (player->getClass() == issueClass)
+    {
+        playersIssueClassLevel = player->GetLevel();
+    }
+
+    // Calculate the number of tokens to issue
+    uint8 tokensToIssueTotal = playersIssueClassLevel / ConfigLevelsPerToken;
+    if (tokensToIssueTotal > tokensIssued)
+        return tokensToIssueTotal - tokensIssued;
+    else
+        return 0;
+}
+
 // (Re)populates the ability data for the classes
 bool MultiClassMod::LoadClassAbilityData()
 {
@@ -731,6 +760,48 @@ void MultiClassMod::PerformKnownSpellUpdateFromOtherClasses(Player* player)
     }
 }
 
+bool MultiClassMod::PerformTokenIssuesForCurrentClass(Player* player)
+{
+    // Give tokens if there are any to give
+    uint8 tokenCountToIssue = GetTokenCountToIssueForClass(player, player->getClass());
+    if (tokenCountToIssue > 0)
+    {
+        uint32 itemIDofToken;
+
+        // Determine the token type
+        switch (player->getClass())
+        {
+        case CLASS_WARRIOR:     itemIDofToken = 81207; break;
+        case CLASS_PALADIN:     itemIDofToken = 81203; break;
+        case CLASS_HUNTER:      itemIDofToken = 81201; break;
+        case CLASS_ROGUE:       itemIDofToken = 81205; break;
+        case CLASS_PRIEST:      itemIDofToken = 81208; break;
+        case CLASS_DEATH_KNIGHT:itemIDofToken = 81204; break;
+        case CLASS_SHAMAN:      itemIDofToken = 81206; break;
+        case CLASS_MAGE:        itemIDofToken = 81202; break;
+        case CLASS_WARLOCK:     itemIDofToken = 81210; break;
+        case CLASS_DRUID:       itemIDofToken = 81209; break;
+        default:
+        {
+            LOG_ERROR("module", "multiclass: Unable to determine class token to use for class {} on player {}", player->getClass(), player->GetGUID().GetCounter());
+            return false;
+        }
+        }
+
+        // Issue the token
+        if (!player->AddItem(itemIDofToken, tokenCountToIssue))
+        {
+            LOG_ERROR("module", "multiclass: Unable to give item with id {} to player with GUID {}", player->getClass(), player->GetGUID().GetCounter());
+            return false;
+        }
+
+        // Update the token issue amount in the database
+        
+    }
+
+    return true;
+}
+
 bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 {
     // Delete every mod table record with this player guid
@@ -771,6 +842,7 @@ public:
         }
 
         MultiClass->PerformKnownSpellUpdateFromOtherClasses(player);
+        MultiClass->PerformTokenIssuesForCurrentClass(player);
     }
 
     void OnLogout(Player* player)
@@ -796,6 +868,7 @@ public:
         if (ConfigEnabled == false)
             return;
         MultiClass->PerformKnownSpellUpdateFromOtherClasses(player);
+        MultiClass->PerformTokenIssuesForCurrentClass(player);
     }
 };
 

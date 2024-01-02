@@ -81,6 +81,7 @@ private:
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
     void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
+    uint8 GetTokenCountToIssueForClass(Player* player, uint8 issueClass);
 
 public:
     static MultiClassMod* instance()
@@ -97,6 +98,7 @@ public:
     bool PerformQueuedClassSwitchOnLogin(Player* player);
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromOtherClasses(Player* player);
+    bool PerformTokenIssuesForCurrentClass(Player* player);
 };
 
 std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet); // Can delete?

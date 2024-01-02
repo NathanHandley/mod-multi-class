@@ -3,6 +3,7 @@ CREATE TABLE `mod_multi_class_characters` (
 	`guid` INT(10) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'Global Unique Identifier',
 	`class` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
 	`level` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
+	`tokensIssued` TINYINT(3) UNSIGNED NOT NULL DEFAULT '0',
 	`xp` INT(10) UNSIGNED NOT NULL DEFAULT '0',
 	`leveltime` INT(10) UNSIGNED NOT NULL DEFAULT '0',
 	`rest_bonus` FLOAT NOT NULL DEFAULT '0',
