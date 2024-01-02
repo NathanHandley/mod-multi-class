@@ -62,7 +62,6 @@ private:
     void QueueClassSwitch(Player* player, uint8 nextClass);
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
-    std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
     std::map<uint8, std::set<uint32>> GetSpellsKnownByPlayerInAllClasses(Player* player);
     bool IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID, std::map<uint8, uint8> levelByClass);
 
@@ -100,9 +99,12 @@ public:
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromOtherClasses(Player* player);
     bool PerformTokenIssuesForCurrentClass(Player* player);
+
+    std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
 };
 
-std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet); // Can delete?
+//std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet); // Can delete?
+std::string GetClassStringFromID(uint8 classID);
 
 #define MultiClass MultiClassMod::instance()
 

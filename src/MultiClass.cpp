@@ -98,25 +98,6 @@ void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
     CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
 }
 
-// Returns any class levels for classes that the player is not
-map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* player)
-{
-    map<uint8, uint8> levelByClass;
-    QueryResult classQueryResult = CharacterDatabase.Query("SELECT `class`, `level` FROM mod_multi_class_characters WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
-    if (classQueryResult)
-    {
-        do
-        {
-            Field* fields = classQueryResult->Fetch();
-            uint8 returnedClass = fields[0].Get<uint8>();
-            uint8 returnedLevel = fields[1].Get<uint8>();
-            levelByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
-        } while (classQueryResult->NextRow());
-
-    }
-    return levelByClass;
-}
-
 // Returns all of the spells known by the player in all classes
 map<uint8, set<uint32>> MultiClassMod::GetSpellsKnownByPlayerInAllClasses(Player* player)
 {
@@ -297,30 +278,6 @@ void MultiClassMod::ReplaceModClassActionCopy(Player* player, CharacterDatabaseT
     // Delete the old action entries
     transaction->Append("DELETE FROM `mod_multi_class_character_action` WHERE guid = {} and class = {}", player->GetGUID().GetCounter(), player->getClass());
 
-    // Save current action buttons
-    // This is closer to a better approach, but can't be done unless action buttons are made available to the mod
-    //QueryResult queryResult = CharacterDatabase.Query("SELECT spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->GetGUID().GetCounter());
-    //if (queryResult)
-    //{
-    //    do
-    //    {
-    //        // Pull the data out
-    //        Field* fields = queryResult->Fetch();
-    //        uint8 actionSpec = fields[0].Get<uint8>();
-    //        uint8 actionButton = fields[1].Get<uint8>();
-    //        uint32 actionAction = fields[2].Get<uint32>();
-    //        uint8 actionType = fields[3].Get<uint8>();
-
-    //        transaction->Append("INSERT IGNORE INTO `mod_multi_class_character_action` (`guid`, class, `spec`, `button`, `action`, `type`) VALUES ({}, {}, {}, {}, {}, {})",
-    //            player->GetGUID().GetCounter(),
-    //            player->getClass(),
-    //            (uint32)actionSpec,
-    //            (uint32)actionButton,
-    //            actionAction,
-    //            (uint32)actionType);
-
-    //    } while (queryResult->NextRow());
-    //}
     // Less ideal approach, as it causes a table scan on character_action
     transaction->Append("INSERT IGNORE INTO mod_multi_class_character_action (guid, class, spec, button, `action`, `type`) SELECT guid, {}, spec, button, `action`, `type` FROM character_action WHERE guid = {}", player->getClass(), player->GetGUID().GetCounter());
 }
@@ -756,6 +713,26 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
     return true;
 }
 
+bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
+{
+    // Delete every mod table record with this player guid
+    uint32 playerGUID = guid.GetCounter();
+
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+    transaction->Append("DELETE FROM mod_multi_class_characters WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_talent WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_aura WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_spell WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_skills WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_next_switch_class WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_tokens WHERE guid = {}", playerGUID);
+    CharacterDatabase.CommitTransaction(transaction);
+    return true;
+}
+
 void MultiClassMod::PerformKnownSpellUpdateFromOtherClasses(Player* player)
 {
     // Handle cross class spells
@@ -823,24 +800,23 @@ bool MultiClassMod::PerformTokenIssuesForCurrentClass(Player* player)
     return true;
 }
 
-bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
+// Returns any class levels for classes that the player is not
+map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* player)
 {
-    // Delete every mod table record with this player guid
-    uint32 playerGUID = guid.GetCounter();
+    map<uint8, uint8> levelByClass;
+    QueryResult classQueryResult = CharacterDatabase.Query("SELECT `class`, `level` FROM mod_multi_class_characters WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
+    if (classQueryResult)
+    {
+        do
+        {
+            Field* fields = classQueryResult->Fetch();
+            uint8 returnedClass = fields[0].Get<uint8>();
+            uint8 returnedLevel = fields[1].Get<uint8>();
+            levelByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
+        } while (classQueryResult->NextRow());
 
-    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
-    transaction->Append("DELETE FROM mod_multi_class_characters WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_talent WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_aura WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_spell WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_skills WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_next_switch_class WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_tokens WHERE guid = {}", playerGUID);
-    CharacterDatabase.CommitTransaction(transaction);
-    return true;
+    }
+    return levelByClass;
 }
 
 class MultiClass_PlayerScript : public PlayerScript
@@ -952,7 +928,8 @@ public:
     {
         static std::vector<ChatCommand> CommandTable =
         {
-            { "change",        SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes your class" },
+            { "change",         SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes your class" },
+            { "list",           SEC_PLAYER,                            true, &HandleMultiClassListClasses,              "Shows the level of all the classes you have on this character" },
         };
 
         static std::vector<ChatCommand> commandTable =
@@ -1015,20 +992,47 @@ public:
         // Class change accepted
         return true;
     }
+
+    static bool HandleMultiClassListClasses(ChatHandler* handler, const char* args)
+    {
+        if (ConfigEnabled == false)
+            return true;
+
+        handler->PSendSysMessage("Your classes:");
+
+        // Get levels of the other classes
+        Player* player = handler->GetPlayer();
+        map<uint8, uint8> otherClassLevels = MultiClass->GetOtherClassLevelsByClassForPlayer(player);
+
+        // Output all of the classes, starting with this one
+        string currentLine = " - " + GetClassStringFromID(player->getClass()) + "(" + std::to_string(player->GetLevel()) + ")";
+        handler->PSendSysMessage(currentLine.c_str());
+        for (auto& curClassLevel : otherClassLevels)
+        {
+            currentLine = " - " + GetClassStringFromID(curClassLevel.first) + "(" + std::to_string(curClassLevel.second) + ")";
+            handler->PSendSysMessage(currentLine.c_str());
+        }
+
+        return true;
+    }
 };
 
-std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet)
+std::string GetClassStringFromID(uint8 classID)
 {
-    bool isFirstElement = true;
-    stringstream generatedStringStream;
-    for (auto element : intSet)
+    switch (classID)
     {
-        if (!isFirstElement)
-            generatedStringStream << ", ";
-        generatedStringStream << element;
-        isFirstElement = false;
+    case CLASS_WARRIOR:     return "Warrior";
+    case CLASS_PALADIN:     return "Paladin";
+    case CLASS_HUNTER:      return "Hunter";
+    case CLASS_ROGUE:       return "Rogue";
+    case CLASS_PRIEST:      return "Priest";
+    case CLASS_DEATH_KNIGHT:return "Death Knight";
+    case CLASS_SHAMAN:      return "Shaman";
+    case CLASS_MAGE:        return "Mage";
+    case CLASS_WARLOCK:     return "Warlock";
+    case CLASS_DRUID:       return "Druid";
+    default:                return "Unknown";
     }
-    return generatedStringStream.str();
 }
 
 void AddMultiClassScripts()
