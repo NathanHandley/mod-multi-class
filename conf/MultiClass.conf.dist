@@ -15,9 +15,9 @@ MultiClass.Enable = 1
 #
 #    MultiClass.CrossClassIncludeSkillIDs
 #        Description: Comma delimited list of skill IDs that remain when you switch classes
-#                     Default list is related to professions and flying
+#                     Default list is related to professions, flying, pick lock
 #
-MultiClass.CrossClassIncludeSkillIDs = 129, 164, 165, 171, 182, 185, 186, 197, 202, 333, 356, 393, 755, 762, 773
+MultiClass.CrossClassIncludeSkillIDs = 129, 164, 165, 171, 182, 185, 186, 197, 202, 333, 356, 393, 633, 755, 762, 773
 
 #    MultiClass.CrossClassExcludeSpellIDs
 #        Description: Comma delimited list of spell IDs that will not carry over when you switch
