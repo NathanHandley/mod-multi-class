@@ -4317,3 +4317,8 @@ INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `R
 INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (66843, 'Call of the Ancestors', '', 0, 40, 7, 'Both', 0, 0);
 INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (66844, 'Call of the Spirits', '', 0, 50, 7, 'Both', 0, 0);
 INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (70164, 'Rune of the Nerubian Carapace', '', 0, 72, 6, 'Both', 0, 0);
+INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (59671, 'Challenging Howl', '', 59672, 60, 9, 'Both', 0, 0);
+INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (54785, 'Demon Charge', '', 59672, 60, 9, 'Both', 0, 0);
+INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (50589, 'Immolation Aura', '', 59672, 60, 9, 'Both', 0, 0);
+INSERT INTO `mod_multi_class_spells` (`SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent`) VALUES (50581, 'Shadow Cleave', '', 59672, 60, 9, 'Both', 0, 0);
+
