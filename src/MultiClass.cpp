@@ -723,7 +723,7 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     return true;
 }
 
-void MultiClassMod::PerformKnownSpellUpdateFromOtherClasses(Player* player)
+void MultiClassMod::PerformKnownSpellUpdateFromMasterSkills(Player* player)
 {
     // Handle cross class spells
     if (ConfigEnableMasterSkills)
@@ -809,6 +809,15 @@ map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* pla
     return levelByClass;
 }
 
+// Returns true if the passed spellID is a master skill
+bool MultiClassMod::IsSpellAMasterSkill(uint32 spellID)
+{
+    if (MasterSkillsBySpellID.find(spellID) == MasterSkillsBySpellID.end())
+        return false;
+    else
+        return true;
+}
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -829,7 +838,7 @@ public:
             LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on login for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
         }
 
-        MultiClass->PerformKnownSpellUpdateFromOtherClasses(player);
+        MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         MultiClass->PerformTokenIssuesForCurrentClass(player);
     }
 
@@ -855,8 +864,32 @@ public:
     {
         if (ConfigEnabled == false)
             return;
-        MultiClass->PerformKnownSpellUpdateFromOtherClasses(player);
+        MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         MultiClass->PerformTokenIssuesForCurrentClass(player);
+    }
+
+    void OnLearnSpell(Player* player, uint32 spellID)
+    {
+        if (ConfigEnabled == false)
+            return;
+
+        // Only take action if a master skill was learned
+        if (MultiClass->IsSpellAMasterSkill(spellID))
+        {
+            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
+        }
+    }
+
+    void OnForgotSpell(Player* player, uint32 spellID)
+    {
+        if (ConfigEnabled == false)
+            return;
+
+        // Only take action if a master skill was forgotten
+        if (MultiClass->IsSpellAMasterSkill(spellID))
+        {
+            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
+        }
     }
 };
 

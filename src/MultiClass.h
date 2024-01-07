@@ -100,10 +100,11 @@ public:
     bool PerformQueuedClassSwitchOnLogout(Player* player);
     bool PerformQueuedClassSwitchOnLogin(Player* player);
     bool PerformPlayerDelete(ObjectGuid guid);
-    void PerformKnownSpellUpdateFromOtherClasses(Player* player);
+    void PerformKnownSpellUpdateFromMasterSkills(Player* player);
     bool PerformTokenIssuesForCurrentClass(Player* player);
 
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
+    bool IsSpellAMasterSkill(uint32 spellID);
 };
 
 std::string GetClassStringFromID(uint8 classID);
