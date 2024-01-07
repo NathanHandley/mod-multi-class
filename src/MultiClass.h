@@ -36,11 +36,17 @@ public:
     std::string SpellSubText;
     uint32 ReqSpellID;
     uint8 ReqLevel;
-    uint8 ModifiedReqLevel;
     bool AllowHorde;
     bool AllowAlliance;
     bool IsTalent;
     bool IsLearnedByTalent;
+};
+
+class MasterSkill
+{
+public:
+    uint32 SpellID;
+    std::list<MultiClassSpell> Spells;
 };
 
 struct QueuedClassSwitch
@@ -56,6 +62,7 @@ private:
 
     std::map<uint32, std::map<uint32, MultiClassSpell>> ClassSpellsByClassAndSpellID;
     std::set<uint32> ClassSpellIDs;
+    std::map<uint32, MasterSkill> MasterSkillsBySpellID;
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);

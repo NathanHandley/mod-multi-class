@@ -155,8 +155,8 @@ bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID,
         // A primary class exists and the spell belongs to it, so calculate when it can be 
         uint8 primaryClassLevel = levelByClass[spell.ClassID];
         uint8 secondaryClassLevel = player->GetLevel();
-        uint8 primaryCanTeachLevel = spell.ModifiedReqLevel;
-        uint8 secondaryCanLearnLevel = spell.ModifiedReqLevel;
+        uint8 primaryCanTeachLevel = spell.ReqLevel;
+        uint8 secondaryCanLearnLevel = spell.ReqLevel;
 
         // Compare the teach/learn levels to see if it can be learned
         if (primaryClassLevel >= primaryCanTeachLevel && secondaryClassLevel >= secondaryCanLearnLevel)
@@ -520,14 +520,11 @@ void MultiClassMod::UpdateTokenIssueCountForPlayer(Player* player, uint8 tokenCo
 // (Re)populates the ability data for the classes
 bool MultiClassMod::LoadClassAbilityData()
 {
-    // Cache the mod for talent level calculations
-    float talentRateMod = 1.0f;
-    if (sWorld->getRate(RATE_TALENT) > 1.0f)
-        talentRateMod = 1.0f / sWorld->getRate(RATE_TALENT);
-
-    // Pull in all the new data
-    QueryResult queryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent` FROM mod_multi_class_spells ORDER BY `Class`, `SpellID`");
-    if (!queryResult)
+    // Pull in all the new spell data
+    ClassSpellsByClassAndSpellID.clear();
+    ClassSpellIDs.clear();
+    QueryResult spellQueryResult = WorldDatabase.Query("SELECT `SpellID`, `SpellName`, `SpellSubText`, `ReqSpellID`, `ReqLevel`, `Class`, `Side`, `IsTalent`, `IsLearnedByTalent` FROM mod_multi_class_spells ORDER BY `Class`, `SpellID`");
+    if (!spellQueryResult)
     {
         LOG_ERROR("module", "multiclass: Error pulling class spell data from the database.  Does the 'mod_multi_class_spells' table exist in the world database and is populated?");
         return false;
@@ -535,7 +532,7 @@ bool MultiClassMod::LoadClassAbilityData()
     do
     {
         // Pull the data out
-        Field* fields = queryResult->Fetch();
+        Field* fields = spellQueryResult->Fetch();
         MultiClassSpell curSpellData;
         curSpellData.SpellID = fields[0].Get<uint32>();
         curSpellData.SpellName = fields[1].Get<std::string>();
@@ -546,14 +543,6 @@ bool MultiClassMod::LoadClassAbilityData()
         std::string curFactionAllowed = fields[6].Get<std::string>();
         curSpellData.IsTalent = fields[7].Get<bool>();
         curSpellData.IsLearnedByTalent = fields[8].Get<bool>();
-
-        // Calculate the true required level factoring in the talent rate
-        if (curSpellData.IsLearnedByTalent && curSpellData.ReqLevel >= 11 && sWorld->getRate(RATE_TALENT) > 1.0f)
-        {
-            curSpellData.ModifiedReqLevel = (uint8)((float)(curSpellData.ReqLevel - 10) * talentRateMod) + 10;
-        }
-        else
-            curSpellData.ModifiedReqLevel = curSpellData.ReqLevel;
 
         // Determine the faction
         if (curFactionAllowed == "ALLIANCE" || curFactionAllowed == "Alliance" || curFactionAllowed == "alliance")
@@ -593,7 +582,47 @@ bool MultiClassMod::LoadClassAbilityData()
         {
             ClassSpellIDs.insert(curSpellData.SpellID);
         }
-    } while (queryResult->NextRow());
+    } while (spellQueryResult->NextRow());
+
+    // Pull in the master skills
+    MasterSkillsBySpellID.clear();
+    QueryResult masterQueryResult = WorldDatabase.Query("SELECT MasterSkillID, LearnSpellClassID, LearnSpellID FROM mod_multi_class_master_skill_spells ORDER BY MasterSkillID");
+    if (!masterQueryResult)
+    {
+        LOG_ERROR("module", "multiclass: Error pulling master skill data from the database.  Does the 'mod_multi_class_master_skill_spells' table exist in the world database and is populated?");
+        return false;
+    }
+    do
+    {
+        // Pull the data out
+        Field* fields = masterQueryResult->Fetch();
+        uint32 masterSkillSpellID = fields[0].Get<uint32>();
+        uint32 learnSpellClass = fields[1].Get<uint8>();
+        uint32 learnSpellID = fields[2].Get<uint32>();
+
+        // Get the spell
+        MultiClassSpell curSpell;
+        if (ClassSpellsByClassAndSpellID.find(learnSpellClass) == ClassSpellsByClassAndSpellID.end() ||
+            ClassSpellsByClassAndSpellID[learnSpellClass].find(learnSpellID) == ClassSpellsByClassAndSpellID[learnSpellClass].end())
+        {
+            LOG_ERROR("module", "multiclass: Could not find multi class spell with id {} in class {}, so skipping add of master skill {}", learnSpellID, learnSpellClass, masterSkillSpellID);
+            continue;
+        }
+        curSpell = ClassSpellsByClassAndSpellID[learnSpellClass][learnSpellID];
+
+        // Add the spell to the a master skill, creating a new master skill if one doesn't exist
+        if (MasterSkillsBySpellID.find(masterSkillSpellID) == MasterSkillsBySpellID.end())
+        {
+            MasterSkill newMasterSkill;
+            newMasterSkill.SpellID = masterSkillSpellID;
+            newMasterSkill.Spells.push_back(curSpell);
+            MasterSkillsBySpellID.insert(pair<uint32, MasterSkill>(masterSkillSpellID, newMasterSkill));
+        }
+        else
+        {
+            MasterSkillsBySpellID[masterSkillSpellID].Spells.push_back(curSpell);
+        }
+    } while (masterQueryResult->NextRow());
     return true;
 }
 
