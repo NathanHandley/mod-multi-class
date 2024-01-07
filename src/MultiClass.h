@@ -24,9 +24,6 @@
 #include <set>
 #include <map>
 
-// Used for storing spells to always learn
-#define CLASS_LEARNPOOL = 99
-
 class MultiClassSpell
 {
 public:
@@ -69,8 +66,7 @@ private:
     void QueueClassSwitch(Player* player, uint8 nextClass);
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
-    std::map<uint8, std::set<uint32>> GetSpellsKnownByPlayerInAllClasses(Player* player);
-    bool IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID, std::map<uint8, uint8> levelByClass);
+    std::list<MasterSkill> GetKnownMasterSkillsForPlayer(Player* player);
 
     void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
@@ -110,7 +106,6 @@ public:
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
 };
 
-//std::string GenerateCommaDelimitedStringFromSet(std::set<uint32> intSet); // Can delete?
 std::string GetClassStringFromID(uint8 classID);
 
 #define MultiClass MultiClassMod::instance()

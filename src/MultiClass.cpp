@@ -38,9 +38,9 @@ using namespace std;
 static bool ConfigEnabled = true;
 static bool ConfigDisplayInstructionMessage = true;
 static uint32 ConfigMaxSkillIDCheck = 1000;          // The highest level of skill ID it will look for when doing copies
-static bool ConfigEnableCrossClassSpellLearning = true; // If true, the player can learn spells from other classes
+static bool ConfigEnableMasterSkills = true;         // If true, the player can learn spells from other classes
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
-static uint8 ConfigLevelsPerToken = 10;             // How many levels per token issued
+static uint8 ConfigLevelsPerToken = 10;              // How many levels per token issued
 
 MultiClassMod::MultiClassMod()
 {
@@ -98,72 +98,16 @@ void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
     CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
 }
 
-// Returns all of the spells known by the player in all classes
-map<uint8, set<uint32>> MultiClassMod::GetSpellsKnownByPlayerInAllClasses(Player* player)
+// Returns a list of MasterSkills that the player knows
+list<MasterSkill> MultiClassMod::GetKnownMasterSkillsForPlayer(Player* player)
 {
-    map<uint8, set<uint32>> spellsKnownByClass;
-
-    // Pull the current class first
+    list<MasterSkill> knownMasterSkills;
     for (auto& curSpell : player->GetSpellMap())
     {
-        // Skip non-class spells
-        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
-            continue;
-        spellsKnownByClass[player->getClass()].insert(curSpell.first);
+        if (MasterSkillsBySpellID.find(curSpell.first) != MasterSkillsBySpellID.end())
+            knownMasterSkills.push_back(MasterSkillsBySpellID[curSpell.first]);
     }
-
-    // Pull the other class spells
-    QueryResult otherClassSpellQueryResult = CharacterDatabase.Query("SELECT class, spell FROM mod_multi_class_character_spell WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
-    if (otherClassSpellQueryResult)
-    {
-        do
-        {
-            Field* fields = otherClassSpellQueryResult->Fetch();
-            uint8 returnedClass = fields[0].Get<uint8>();
-            uint32 returnedSpell = fields[1].Get<uint32>();
-            spellsKnownByClass[returnedClass].insert(returnedSpell);
-        } while (otherClassSpellQueryResult->NextRow());
-    }
-
-    return spellsKnownByClass;
-}
-
-// Returns true if the spell is eligible to be learned
-bool MultiClassMod::IsPlayerEligibleToLearnSpell(Player* player, uint32 spellID, std::map<uint8, uint8> levelByClass)
-{
-    // Loop through every class spell list, and pick the eligible match
-    for (auto& classSpellList : ClassSpellsByClassAndSpellID)
-    {
-        // If found, pull the spell
-        if (classSpellList.second.find(spellID) == classSpellList.second.end())
-            continue;
-        MultiClassSpell spell = classSpellList.second[spellID];
-
-        // For same-class spells, only need to meet the level requirement
-        if (spell.ClassID == player->getClass())
-        {
-            if (player->GetLevel() >= spell.ReqLevel)
-                return true;
-        }
-
-        // Skip if the player doesn't have this class
-        if (levelByClass.find(spell.ClassID) == levelByClass.end())
-        {
-            continue;
-        }
-
-        // A primary class exists and the spell belongs to it, so calculate when it can be 
-        uint8 primaryClassLevel = levelByClass[spell.ClassID];
-        uint8 secondaryClassLevel = player->GetLevel();
-        uint8 primaryCanTeachLevel = spell.ReqLevel;
-        uint8 secondaryCanLearnLevel = spell.ReqLevel;
-
-        // Compare the teach/learn levels to see if it can be learned
-        if (primaryClassLevel >= primaryCanTeachLevel && secondaryClassLevel >= secondaryCanLearnLevel)
-            return true;
-    }
-
-    return false;
+    return knownMasterSkills;
 }
 
 void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction)
@@ -430,46 +374,59 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
     outSpellUnlearns.clear();
     outSpellLearns.clear();
 
-    // Get the levels of every class, except this class
-    map<uint8, uint8> levelByClass = GetOtherClassLevelsByClassForPlayer(player);
-    if (levelByClass.empty() == true)
-        return;
+    // Get the known Master Skills
+    list<MasterSkill> knownMasterSkills = GetKnownMasterSkillsForPlayer(player);
+    TeamId playerTeamFaction = player->TeamIdForRace(player->getRace());
 
-    // Pull the spells for all classes
-    map<uint8, set<uint32>> spellsKnownByClass = GetSpellsKnownByPlayerInAllClasses(player);
-
-    // Go through all of the spells to see what needs to be added or removed
-    for (auto& classSpellList : spellsKnownByClass)
+    // Go through the master skills and see what the player should know from them now
+    set<uint32> shouldKnowSpellIDsFromMasterSkills;
+    for (auto& curMasterSkill : knownMasterSkills)
     {
-        for (auto& spellID : classSpellList.second)
+        for (auto& curMasterSkillSpell : curMasterSkill.Spells)
         {
-            // Skip if it's not a class spell
-            if (ClassSpellIDs.find(spellID) == ClassSpellIDs.end())
+            // Skip out of level spells
+            if (curMasterSkillSpell.ReqLevel > player->GetLevel())
                 continue;
 
-            // See if it is eligible for learning
-            bool isPlayerEligibleToLearnSpell = IsPlayerEligibleToLearnSpell(player, spellID, levelByClass);
+            // Skip spells that don't allign to the player's faction
+            if (playerTeamFaction == TEAM_ALLIANCE && curMasterSkillSpell.AllowAlliance == false)
+                continue;
+            else if (playerTeamFaction == TEAM_HORDE && curMasterSkillSpell.AllowHorde == false)
+                continue;
 
-            // If the player has the spell and is ineligible, remove it
-            if (!isPlayerEligibleToLearnSpell && spellsKnownByClass[player->getClass()].find(spellID) != spellsKnownByClass[player->getClass()].end())
-            {
-                outSpellUnlearns.push_back(spellID);
-            }
+            // This is a spell the player should know
+            shouldKnowSpellIDsFromMasterSkills.insert(curMasterSkillSpell.SpellID);
 
-            // If the player does not have the spell, but is eligible, add it
-            else if (isPlayerEligibleToLearnSpell && spellsKnownByClass[player->getClass()].find(spellID) == spellsKnownByClass[player->getClass()].end())
-            {
-                outSpellLearns.push_back(spellID);
-            }
+            // If the player doesn't know it, mark it to learn
+            if (player->HasSpell(curMasterSkillSpell.SpellID) == false)
+                outSpellLearns.push_back(curMasterSkillSpell.SpellID);
         }
     }
 
-    // Reconcile the add / remove queues
-    // Precursors
+    // Go through what class spells the player does know, and mark removal for any that don't belong to the player's class and aren't in the master skill list
+    for (auto& curSpell : player->GetSpellMap())
+    {
+        // Skip non-class spells
+        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
+            continue;
+
+        // Skip these class spells
+        // TODO: Talent awareness?
+        if (ClassSpellsByClassAndSpellID[player->getClass()].find(curSpell.first) != ClassSpellsByClassAndSpellID[player->getClass()].end())
+            continue;
+
+        // Mark removal if the player knows a class spell, but it's not in the master list pulled earlier
+        if (shouldKnowSpellIDsFromMasterSkills.find(curSpell.first) == shouldKnowSpellIDsFromMasterSkills.end())
+            outSpellUnlearns.push_back(curSpell.first);        
+    }
 }
 
 uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player)
 {
+    // Ignore if death knight
+    if (player->getClass() == CLASS_DEATH_KNIGHT)
+        return 0;
+
     uint8 playersIssueClassLevel = player->GetLevel();
     uint8 tokensIssued = 0;
 
@@ -497,6 +454,10 @@ uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player)
 
 void MultiClassMod::UpdateTokenIssueCountForPlayer(Player* player, uint8 tokenCount)
 {
+    // Ignore if death knight
+    if (player->getClass() == CLASS_DEATH_KNIGHT)
+        return;
+
     QueryResult tokenQueryResult = CharacterDatabase.Query("SELECT `tokensIssued` FROM mod_multi_class_character_tokens WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), player->getClass());
     if (!tokenQueryResult || tokenQueryResult->GetRowCount() == 0)
     {
@@ -765,7 +726,7 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 void MultiClassMod::PerformKnownSpellUpdateFromOtherClasses(Player* player)
 {
     // Handle cross class spells
-    if (ConfigEnableCrossClassSpellLearning)
+    if (ConfigEnableMasterSkills)
     {
         list<int32> spellsToUnlearn;
         list<int32> spellsToLearn;
