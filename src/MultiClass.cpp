@@ -377,7 +377,6 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
 
     // Get the known Master Skills
     list<MasterSkill> knownMasterSkills = GetKnownMasterSkillsForPlayer(player);
-    TeamId playerTeamFaction = player->TeamIdForRace(player->getRace());
 
     // Go through the master skills and see what the player should know from them now
     set<uint32> shouldKnowSpellIDsFromMasterSkills;
@@ -387,12 +386,6 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
         {
             // Skip out of level spells
             if (curMasterSkillSpell.ReqLevel > player->GetLevel())
-                continue;
-
-            // Skip spells that don't allign to the player's faction
-            if (playerTeamFaction == TEAM_ALLIANCE && curMasterSkillSpell.AllowAlliance == false)
-                continue;
-            else if (playerTeamFaction == TEAM_HORDE && curMasterSkillSpell.AllowHorde == false)
                 continue;
 
             // This is a spell the player should know
