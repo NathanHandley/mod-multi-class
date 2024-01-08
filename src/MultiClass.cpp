@@ -37,10 +37,11 @@ using namespace std;
 
 static bool ConfigEnabled = true;
 static bool ConfigDisplayInstructionMessage = true;
-static uint32 ConfigMaxSkillIDCheck = 1000;          // The highest level of skill ID it will look for when doing copies
-static bool ConfigEnableMasterSkills = true;         // If true, the player can learn spells from other classes
+static uint32 ConfigMaxSkillIDCheck = 1000;             // The highest level of skill ID it will look for when doing copies
+static bool ConfigEnableMasterSkills = true;            // If true, the player can learn spells from other classes
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
-static uint8 ConfigLevelsPerToken = 10;              // How many levels per token issued
+static uint8 ConfigLevelsPerToken = 10;                 // How many levels per token issued
+static list<uint8> ConfigBonusTokenLevels({81, 82, 83});// Levels where an extra token is awarded
 
 MultiClassMod::MultiClassMod()
 {
@@ -446,6 +447,11 @@ uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player)
 
     // Calculate the number of tokens to issue
     uint8 tokensToIssueTotal = playersIssueClassLevel / ConfigLevelsPerToken;
+    for (auto& bonusLevel : ConfigBonusTokenLevels)
+    {
+        if (playersIssueClassLevel >= bonusLevel)
+            tokensToIssueTotal++;
+    }
     if (tokensToIssueTotal > tokensIssued)
         return tokensToIssueTotal - tokensIssued;
     else
