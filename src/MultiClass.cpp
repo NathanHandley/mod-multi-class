@@ -122,7 +122,6 @@ void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, Chara
     else
     {
         Field* fields = queryResult->Fetch();
-        uint32 spellID = fields[0].Get<uint32>();
         auto finiteAlways = [](float f) { return std::isfinite(f) ? f : 0.0f; };
 
         transaction->Append("INSERT IGNORE INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
@@ -258,7 +257,6 @@ void MultiClassMod::UpdateCharacterFromModCharacterTable(uint32 playerGUID, uint
     else
     {
         Field* fields = queryResult->Fetch();
-        uint32 spellID = fields[0].Get<uint32>();
         auto finiteAlways = [](float f) { return std::isfinite(f) ? f : 0.0f; };
 
         transaction->Append("UPDATE characters SET `class` = {}, `level` = {}, `xp` = {}, `leveltime` = {}, `rest_bonus` = {}, `resettalents_cost` = {}, `resettalents_time` = {}, `health` = {}, `power1` = {}, `power2` = {}, `power3` = {}, `power4` = {}, `power5` = {}, `power6` = {}, `power7` = {}, `talentGroupsCount` = {}, `activeTalentGroup` = {} WHERE `guid` = {}",
@@ -629,7 +627,6 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     if (queuedClassSwitch.classID == CLASS_NONE)
         return true;
 
-    uint8 oldClass = player->getClass();
     uint8 nextClass = queuedClassSwitch.classID;
     bool isNew = queuedClassSwitch.isNew;
 
@@ -1015,7 +1012,7 @@ public:
         return true;
     }
 
-    static bool HandleMultiClassListClasses(ChatHandler* handler, const char* args)
+    static bool HandleMultiClassListClasses(ChatHandler* handler, const char* /*args*/)
     {
         if (ConfigEnabled == false)
             return true;
