@@ -43,6 +43,7 @@ class MasterSkill
 {
 public:
     uint32 SpellID;
+    uint8 ClassID;
     std::list<MultiClassSpell> Spells;
 };
 
@@ -67,6 +68,7 @@ private:
     QueuedClassSwitch GetQueuedClassSwitch(Player* player);
     void DeleteQueuedClassSwitch(Player* player);
     std::list<MasterSkill> GetKnownMasterSkillsForPlayer(Player* player);
+    std::list<MasterSkill> GetKnownMasterSkillsForPlayerForClass(Player* player, uint8 classID);
 
     void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
@@ -83,8 +85,9 @@ private:
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
     void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
-    uint8 GetTokenCountToIssueForPlayer(Player* player);
-    void UpdateTokenIssueCountForPlayer(Player* player, uint8 tokenCount);
+    uint8 GetTokenCountToIssueForPlayer(Player* player, uint8 classID);
+    bool RefundTokenCountForPlayerClass(Player* player, uint8 classID, uint8 tokenCountToRefund);
+    void UpdateTokenIssueCountForPlayerClass(Player* player, uint8 tokenCount, uint8 classID);
 
 public:
     static MultiClassMod* instance()
@@ -101,13 +104,15 @@ public:
     bool PerformQueuedClassSwitchOnLogin(Player* player);
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromMasterSkills(Player* player);
-    bool PerformTokenIssuesForCurrentClass(Player* player);
+    bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
+    void ResetMasterSkillsForPlayerClass(ChatHandler* handler, Player* player, uint8 playerClass);
 
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);
 };
 
 std::string GetClassStringFromID(uint8 classID);
+uint32 GetTokenItemIDForClass(uint8 classID);
 
 #define MultiClass MultiClassMod::instance()
 
