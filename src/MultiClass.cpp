@@ -1033,7 +1033,7 @@ public:
         {
             { "change",         SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes your class" },
             { "list",           SEC_PLAYER,                            true, &HandleMultiClassListClasses,              "Shows the level of all the classes you have on this character" },
-            { "resetskills",    SEC_PLAYER,                            true, &HandleMultiClassMasterSkillReset,         "Resets spent master tokens for a class" },
+            { "resetmasterskills",    SEC_PLAYER,                            true, &HandleMultiClassMasterSkillReset,         "Resets spent master tokens for a class" },
         };
 
         static std::vector<ChatCommand> commandTable =
@@ -1104,8 +1104,8 @@ public:
 
         if (!*args)
         {
-            handler->PSendSysMessage(".class resetskills 'class'");
-            handler->PSendSysMessage("Removes and learned master skills for the passed class, refunding the tokens. Example: '.class resetskills warrior'");
+            handler->PSendSysMessage(".class resetmasterskills 'class'");
+            handler->PSendSysMessage("Removes and learned master skills for the passed class, refunding the tokens. Example: '.class resetmasterskills warrior'");
             handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, shaman, mage, warlock, druid");
             return true;
         }
@@ -1134,8 +1134,8 @@ public:
             classInt = CLASS_DRUID;
         else
         {
-            handler->PSendSysMessage(".class resetskills 'class'");
-            handler->PSendSysMessage("Removes and learned master skills for the passed class, refunding the tokens. Example: '.class resetskills warrior'");
+            handler->PSendSysMessage(".class resetmasterskills 'class'");
+            handler->PSendSysMessage("Removes and learned master skills for the passed class, refunding the tokens. Example: '.class resetmasterskills warrior'");
             handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, shaman, mage, warlock, druid");
             std::string enteredValueLine = "Entered Value was ";
             enteredValueLine.append(className);
