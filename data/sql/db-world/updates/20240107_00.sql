@@ -143,6 +143,8 @@ INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassI
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85015, 8, 11419);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85015, 8, 32266);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85015, 8, 32271);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85015, 8, 49359);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85015, 8, 49360);
 
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 3563);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 3566);
@@ -152,6 +154,8 @@ INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassI
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 11420);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 32267);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 32272);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 49358);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85016, 8, 49361);
 
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85017, 8, 5143);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85017, 8, 5144);
@@ -212,20 +216,29 @@ INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassI
 
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85023, 8, 31589);
 
-INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 33690);
-INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 33691);
-INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 49359);
-INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 49360);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 1463);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 8494);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 8495);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 10191);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 10192);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 10193);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 11252);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 12605);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 27131);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 43019);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85024, 8, 43020);
 
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85025, 8, 35715);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85025, 8, 35717);
-INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85025, 8, 49358);
-INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85025, 8, 49361);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85025, 8, 53140);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85025, 8, 53142);
 
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85026, 8, 44425);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85026, 8, 44780);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85026, 8, 44781);
 
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85027, 8, 33690);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85027, 8, 33691);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85027, 8, 53140);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85027, 8, 53142);
 
@@ -1187,7 +1200,12 @@ INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassI
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 10149);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 10150);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 10151);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 11069);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 11366);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12338);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12339);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12340);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12341);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12505);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12522);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85147, 8, 12523);
@@ -1278,6 +1296,9 @@ INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassI
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 10159);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 10160);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 10161);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 11190);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 12489);
+INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 12490);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 27087);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 42930);
 INSERT INTO mod_multi_class_master_skill_spells (MasterSkillID, LearnSpellClassID, LearnSpellID) VALUES (85154, 8, 42931);
