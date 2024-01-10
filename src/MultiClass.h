@@ -47,6 +47,14 @@ public:
     std::list<MultiClassSpell> Spells;
 };
 
+struct PlayerClassInfoItem
+{
+    uint8 ClassID;
+    std::string ClassName;
+    uint8 Level;
+    uint8 UseSharedQuests;
+};
+
 struct PlayerClassSettings
 {
     uint32 GUID;
@@ -113,7 +121,8 @@ public:
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
     void ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass);
 
-    std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
+    std::map<uint8, uint8> GetClassLevelsByClassForPlayer(Player* player);
+    std::map<std::string, PlayerClassInfoItem> GetPlayerClassInfoByClassNameForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);
 
     PlayerControllerData GetPlayerControllerData(Player* player);

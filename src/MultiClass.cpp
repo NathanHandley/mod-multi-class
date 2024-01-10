@@ -424,7 +424,7 @@ uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player, uint8 classID
         playersIssueClassLevel = player->GetLevel();
     else
     {
-        map<uint8, uint8> levelsByClassForPlayer = GetOtherClassLevelsByClassForPlayer(player);
+        map<uint8, uint8> levelsByClassForPlayer = GetClassLevelsByClassForPlayer(player);
         if (levelsByClassForPlayer.find(classID) != levelsByClassForPlayer.end())
             playersIssueClassLevel = levelsByClassForPlayer[classID];
     }
@@ -868,9 +868,10 @@ void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 player
 
 
 // Returns any class levels for classes that the player is not
-map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* player)
+map<uint8, uint8> MultiClassMod::GetClassLevelsByClassForPlayer(Player* player)
 {
-    map<uint8, uint8> levelByClass;
+    // Pull the other class levels first
+    map<uint8, uint8> levelsByClass;
     QueryResult classQueryResult = CharacterDatabase.Query("SELECT `class`, `level` FROM mod_multi_class_characters WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
     if (classQueryResult)
     {
@@ -879,11 +880,41 @@ map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* pla
             Field* fields = classQueryResult->Fetch();
             uint8 returnedClass = fields[0].Get<uint8>();
             uint8 returnedLevel = fields[1].Get<uint8>();
-            levelByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
+            levelsByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
         } while (classQueryResult->NextRow());
 
     }
-    return levelByClass;
+
+    // Add this class level
+    levelsByClass.insert(pair<uint8, uint8>(player->getClass(), player->GetLevel()));
+
+    return levelsByClass;
+}
+
+// Returns the full class info set for the player
+map<string, PlayerClassInfoItem> MultiClassMod::GetPlayerClassInfoByClassNameForPlayer(Player* player)
+{
+    map<string, PlayerClassInfoItem> playerClassInfoByClass;
+
+    // Get levels for classes first, and populate the base list
+    map<uint8, uint8> classLevelsByClass = GetClassLevelsByClassForPlayer(player);
+    for (auto& curClassLevel : classLevelsByClass)
+    {
+        PlayerClassInfoItem curClassInfo;
+        curClassInfo.ClassID = curClassLevel.first;
+        curClassInfo.ClassName = GetClassStringFromID(curClassInfo.ClassID);
+        curClassInfo.Level = curClassLevel.second;
+        playerClassInfoByClass.insert(pair<string, PlayerClassInfoItem>(curClassInfo.ClassName, curClassInfo));
+    }
+
+    // Get the settings to populate the remaining data
+    for (auto& playerClassInfoItem : playerClassInfoByClass)
+    {
+        PlayerClassSettings curClassSettings = GetPlayerClassSettings(player, playerClassInfoItem.second.ClassID);
+        playerClassInfoItem.second.UseSharedQuests = curClassSettings.UseSharedQuests;
+    }
+
+    return playerClassInfoByClass;
 }
 
 // Returns true if the passed spellID is a master skill
@@ -960,7 +991,7 @@ public:
 
         if (ConfigDisplayInstructionMessage)
         {
-            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class change |rto change classes.");
+            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
         }	    
 
         MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
@@ -1104,7 +1135,7 @@ public:
         static std::vector<ChatCommand> CommandTable =
         {
             { "change",             SEC_PLAYER,     true, &HandleMultiClassChangeClass,              "Changes your class" },
-            { "info",               SEC_PLAYER,     true, &HandleMultiClassListClasses,              "Shows all your classes, their level, and other properties" },
+            { "info",               SEC_PLAYER,     true, &HandleMultiClassInfo,              "Shows all your classes, their level, and other properties" },
             { "sharequests",        SEC_PLAYER,     true, &HandleMultiClassShareQuests,              "Toggle between sharing or not sharing quests on the current class" },
             { "resetmasterskills",  SEC_PLAYER,     true, &HandleMultiClassMasterSkillReset,         "Resets spent master tokens for a class" },
         };
@@ -1170,23 +1201,25 @@ public:
         return true;
     }
 
-    static bool HandleMultiClassListClasses(ChatHandler* handler, const char* /*args*/)
+    static bool HandleMultiClassInfo(ChatHandler* handler, const char* /*args*/)
     {
         if (ConfigEnabled == false)
             return true;
 
-        handler->PSendSysMessage("Your classes:");
+        handler->PSendSysMessage("Class List:");
 
-        // Get levels of the other classes
+        // Get the player data
         Player* player = handler->GetPlayer();
-        map<uint8, uint8> otherClassLevels = MultiClass->GetOtherClassLevelsByClassForPlayer(player);
+        map<string, PlayerClassInfoItem> playerClassInfoItems = MultiClass->GetPlayerClassInfoByClassNameForPlayer(player);
 
-        // Output all of the classes, starting with this one
-        string currentLine = " - " + GetClassStringFromID(player->getClass()) + "(" + std::to_string(player->GetLevel()) + ")";
-        handler->PSendSysMessage(currentLine.c_str());
-        for (auto& curClassLevel : otherClassLevels)
+        // Write the information out
+        for (auto& playerClassInfoItem : playerClassInfoItems)
         {
-            currentLine = " - " + GetClassStringFromID(curClassLevel.first) + "(" + std::to_string(curClassLevel.second) + ")";
+            string currentLine = " - " + playerClassInfoItem.second.ClassName + "(" + std::to_string(playerClassInfoItem.second.Level) + "), shared quests is ";
+            if (playerClassInfoItem.second.UseSharedQuests)
+                currentLine += "|cff4CFF00ON|r";
+            else
+                currentLine += "|cffff0000OFF|r";
             handler->PSendSysMessage(currentLine.c_str());
         }
 
@@ -1202,7 +1235,7 @@ public:
         {
             handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
             handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
-            handler->PSendSysMessage("Takes effect on relog.  Does not clear any progress when flipped back and forth.");
+            handler->PSendSysMessage("Requires logging out to take effect");
             return true;
         }
 
