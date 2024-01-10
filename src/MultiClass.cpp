@@ -666,14 +666,24 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     return true;
 }
 
-bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player, PlayerControllerData controllerData)
+// Enables or Disables quest sharing for the current player class
+bool MultiClassMod::MarkChangeQuestShareForCurrentClassOnNextLogout(Player* player, bool useSharedQuests)
 {
-    // Only take action if there's a class switch queued
-    if (controllerData.NextClass == player->getClass())
+    PlayerClassSettings classSettings = GetPlayerClassSettings(player, player->getClass());
+    if (classSettings.UseSharedQuests == useSharedQuests)
+        return false;
+    else
+    {
+        classSettings.UseSharedQuests = useSharedQuests;
+        SetPlayerClassSettings(classSettings);
         return true;
+    }
+}
 
+bool MultiClassMod::PerformClassSwitch(Player* player, PlayerControllerData controllerData)
+{
     uint8 nextClass = controllerData.NextClass;
-    bool isNew = DoesSavedClassDataExistForPlayer(player, controllerData.NextClass);
+    bool isNew = !DoesSavedClassDataExistForPlayer(player, controllerData.NextClass);
 
     // Set up the transaction
     CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
@@ -731,6 +741,33 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player, PlayerContr
 
     return true;
 }
+
+bool MultiClassMod::PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDataClass, uint8 nextQuestDataClass)
+{
+    // Set up the transaction
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+
+    // Delete the old mod quest data at the target
+    transaction->Append("DELETE FROM `mod_multi_class_character_queststatus` WHERE guid = {} AND class = {}", playerGUID, prevQuestDataClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_queststatus_rewarded` WHERE guid = {} AND class = {}", playerGUID, prevQuestDataClass);
+
+    // Copy this quest data into the mod quest data
+    transaction->Append("INSERT INTO `mod_multi_class_character_queststatus` (`guid`, `class`, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount`) SELECT {}, {}, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount` FROM character_queststatus WHERE guid = {}", playerGUID, prevQuestDataClass, playerGUID);
+    transaction->Append("INSERT INTO `mod_multi_class_character_queststatus_rewarded` (`guid`, `class`, `quest`, `active`) SELECT {}, {}, `quest`, `active` FROM character_queststatus_rewarded WHERE guid = {}", playerGUID, prevQuestDataClass, playerGUID);
+    
+    // Delete the active quest data
+    transaction->Append("DELETE FROM `character_queststatus` WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM `character_queststatus_rewarded` WHERE guid = {}", playerGUID);
+
+    // Insert in the related quest data from mod
+    transaction->Append("INSERT INTO `character_queststatus` (`guid`, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount`) SELECT {}, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount` FROM mod_multi_class_character_queststatus WHERE guid = {} AND class = {}", playerGUID, playerGUID, nextQuestDataClass);
+    transaction->Append("INSERT INTO `character_queststatus_rewarded` (`guid`, `quest`, `active`) SELECT {}, `quest`, `active` FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {} AND class = {}", playerGUID, playerGUID, nextQuestDataClass);
+
+    // Commit the transaction
+    CharacterDatabase.CommitTransaction(transaction);
+    return true;
+}
+
 bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 {
     // Delete every mod table record with this player guid
@@ -829,19 +866,6 @@ void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 player
     PerformTokenIssuesForPlayerClass(player, playerClass);
 }
 
-// Enables or Disables quest sharing for the current player class
-bool MultiClassMod::PerformChangeQuestShareForCurrentClass(Player* player, bool useSharedQuests)
-{
-    PlayerClassSettings classSettings = GetPlayerClassSettings(player, player->getClass());
-    if (classSettings.UseSharedQuests == useSharedQuests)
-        return false;
-    else
-    {
-        classSettings.UseSharedQuests = useSharedQuests;
-        SetPlayerClassSettings(classSettings);
-        return true;
-    }
-}
 
 // Returns any class levels for classes that the player is not
 map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* player)
@@ -949,9 +973,35 @@ public:
             return;
 
         PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
-        if (!MultiClass->PerformQueuedClassSwitchOnLogout(player, controllerData))
+        PlayerClassSettings nextClassSettings = MultiClass->GetPlayerClassSettings(player, controllerData.NextClass);
+
+        // Class switch
+        if (controllerData.NextClass != player->getClass())
         {
-            LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            if (!MultiClass->PerformClassSwitch(player, controllerData))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+        }
+
+        // Quests Change
+        if (nextClassSettings.UseSharedQuests == true && controllerData.ActiveClassQuests != CLASS_NONE)
+        {
+            if (!MultiClass->PerformQuestDataSwitch(player->GetGUID().GetCounter(), controllerData.ActiveClassQuests, CLASS_NONE))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully perform quest data switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+            controllerData.ActiveClassQuests = CLASS_NONE;
+            MultiClass->SetPlayerControllerData(controllerData);
+        }
+        else if (nextClassSettings.UseSharedQuests == false && controllerData.ActiveClassQuests != controllerData.NextClass)
+        {
+            if (!MultiClass->PerformQuestDataSwitch(player->GetGUID().GetCounter(), controllerData.ActiveClassQuests, controllerData.NextClass))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully perform quest data switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+            controllerData.ActiveClassQuests = controllerData.NextClass;
+            MultiClass->SetPlayerControllerData(controllerData);
         }
     }
 
@@ -1160,7 +1210,7 @@ public:
         if (enteredValue.starts_with("ON") || enteredValue.starts_with("on") || enteredValue.starts_with("On"))
         {
             Player* player = handler->GetPlayer();
-            if (MultiClass->PerformChangeQuestShareForCurrentClass(player, true) == true)
+            if (MultiClass->MarkChangeQuestShareForCurrentClassOnNextLogout(player, true) == true)
             {
                 handler->PSendSysMessage("Success. Shared quests will be used on this class next login");
                 return true;
@@ -1174,7 +1224,7 @@ public:
         else if (enteredValue.starts_with("OF") || enteredValue.starts_with("Of") || enteredValue.starts_with("of"))
         {
             Player* player = handler->GetPlayer();
-            if (MultiClass->PerformChangeQuestShareForCurrentClass(player, false) == true)
+            if (MultiClass->MarkChangeQuestShareForCurrentClassOnNextLogout(player, false) == true)
             {
                 handler->PSendSysMessage("Success. Shared quests will no longer be used on this class next login");
                 return true;

@@ -105,12 +105,13 @@ public:
     bool LoadClassAbilityData();
 
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
-    bool PerformQueuedClassSwitchOnLogout(Player* player, PlayerControllerData controllerData);
+    bool MarkChangeQuestShareForCurrentClassOnNextLogout(Player* player, bool doQuestShare);
+    bool PerformClassSwitch(Player* player, PlayerControllerData controllerData);
+    bool PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDataClass, uint8 nextQuestDataClass);
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromMasterSkills(Player* player);
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
     void ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass);
-    bool PerformChangeQuestShareForCurrentClass(Player* player, bool doQuestShare);
 
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);
