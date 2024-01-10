@@ -97,6 +97,7 @@ private:
     void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
+    void AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* player, uint16 skillID, std::array<uint32, 6> skillSpellIDs, std::list<int32>& inOutSpellUnlearns, std::list<int32>& inOutSpellLearns);
     void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
     uint8 GetTokenCountToIssueForPlayer(Player* player, uint8 classID);
     bool RefundTokenCountForPlayerClass(Player* player, uint8 classID, uint8 tokenCountToRefund);

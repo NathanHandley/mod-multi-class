@@ -361,6 +361,41 @@ void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint
     }
 }
 
+// Modifies a list of spell learn and unlearns for the passed gathering skills
+void MultiClassMod::AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* player, uint16 skillID, array<uint32, 6> skillSpellIDs, list<int32>& inOutSpellUnlearns, list<int32>& inOutSpellLearns)
+{
+    // Get level
+    uint8 playerLevel = player->GetLevel();
+
+    uint32 properSpellID = 0;
+    if (player->HasSkill(skillID))
+    {
+        uint16 skillValue = player->GetSkillValue(skillID);
+        if (skillValue >= 450 && playerLevel >= 55)
+            properSpellID = skillSpellIDs[0];
+        else if (skillValue >= 375 && playerLevel >= 40)
+            properSpellID = skillSpellIDs[1];
+        else if (skillValue >= 300 && playerLevel >= 25)
+            properSpellID = skillSpellIDs[2];
+        else if (skillValue >= 225 && playerLevel >= 10)
+            properSpellID = skillSpellIDs[3];
+        else if (skillValue >= 150)
+            properSpellID = skillSpellIDs[4];
+        else if (skillValue >= 75)
+            properSpellID = skillSpellIDs[5];
+
+        for (uint32 skillSpellID : skillSpellIDs)
+        {
+            if (properSpellID == skillSpellID)
+                inOutSpellLearns.push_back(skillSpellID);
+            else if (!player->HasSpell(skillSpellID))
+                continue;
+            else if (properSpellID == 0 || properSpellID != skillSpellID)
+                inOutSpellUnlearns.push_back(skillSpellID);
+        }
+    }
+}
+
 // Returns a list of what spells should be learned and unlearned for a class
 void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32>& outSpellUnlearns, list<int32>& outSpellLearns)
 {
@@ -370,6 +405,9 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
 
     // Get the known Master Skills
     list<MasterSkill> knownMasterSkills = GetKnownMasterSkillsForPlayer(player);
+
+    // Get level
+    uint8 playerLevel = player->GetLevel();
 
     // Go through the master skills and see what the player should know from them now
     set<uint32> shouldKnowSpellIDsFromMasterSkills;
@@ -390,15 +428,26 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
         }
     }
 
-    // Go through what class spells the player does know, and mark removal for any that don't belong to the player's class and aren't in the master skill list
+    // If player has a gathering skill, determine what rank they should have and set mark accordingly
+    
+    // Herbalism - Lifeblood
+    //AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 182, { 55503, 55502, 55501, 55500, 55480, 55428 }, outSpellUnlearns, outSpellLearns);
+
+    // Mining - Toughness
+    AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 186, { 53040, 53124, 53123, 53122, 53121, 53120 }, outSpellUnlearns, outSpellLearns);
+    
+    // Skinning - Master of Anatomy
+    AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 393, { 53666, 53665, 53664, 53663, 53662, 53125 }, outSpellUnlearns, outSpellLearns);
+
+    // Go through what class spells the player does know, and mark removal for any that don't belong to the player's class, aren't in the master skill list, or are invalid profession spells
     for (auto& curSpell : player->GetSpellMap())
     {
-        // Skip non-class spells
-        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
-            continue;
-
         // Skip already deleted spells
         if (curSpell.second->State == PLAYERSPELL_REMOVED)
+            continue;
+
+        // Skip non class spells
+        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
             continue;
 
         // Skip these class spells
@@ -807,11 +856,18 @@ void MultiClassMod::PerformKnownSpellUpdateFromMasterSkills(Player* player)
                 player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
         }
 
-        // Perform learns
+        // Perform learns, but only temporary ones if it's a gather profession buff spell
+        set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
         for (auto& spellToLearn : spellsToLearn)
         {
             if (!player->HasSpell(spellToLearn))
-                player->learnSpell(spellToLearn);
+            {
+                if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
+                    player->learnSpell(spellToLearn, true);
+                else
+                    player->learnSpell(spellToLearn);
+                
+            }
         }
     }
 }
