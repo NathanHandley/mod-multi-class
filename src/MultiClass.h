@@ -47,10 +47,25 @@ public:
     std::list<MultiClassSpell> Spells;
 };
 
+// Delete?
 struct QueuedClassSwitch
 {
     uint8 classID;
     bool isNew;
+};
+
+struct PlayerCharacterClassSettings
+{
+    uint32 GUID;
+    uint8 ClassID;
+    bool UseSharedQuests;
+};
+
+struct PlayerCharacterControllerData
+{
+    uint32 GUID;
+    uint8 NextClass;
+    uint8 ActiveClassQuests;
 };
 
 class MultiClassMod
@@ -61,6 +76,10 @@ private:
     std::map<uint32, std::map<uint32, MultiClassSpell>> ClassSpellsByClassAndSpellID;
     std::set<uint32> ClassSpellIDs;
     std::map<uint32, MasterSkill> MasterSkillsBySpellID;
+
+    PlayerCharacterControllerData GetPlayerCharacterControllerData(Player* player);
+    PlayerCharacterClassSettings GetPlayerCharacterClassSettings(Player* player, uint8 classID);
+    void SavePlayerCharacterClassSettings(PlayerCharacterClassSettings classSettings);
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
@@ -105,7 +124,8 @@ public:
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromMasterSkills(Player* player);
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
-    void ResetMasterSkillsForPlayerClass(ChatHandler* handler, Player* player, uint8 playerClass);
+    void ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass);
+    bool PerformChangeQuestShareForCurrentClass(Player* player, bool doQuestShare);
 
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);
