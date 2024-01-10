@@ -53,52 +53,6 @@ MultiClassMod::~MultiClassMod()
 
 }
 
-PlayerCharacterControllerData MultiClassMod::GetPlayerCharacterControllerData(Player* player)
-{
-    PlayerCharacterControllerData controllerData;
-    controllerData.GUID = player->GetGUID().GetCounter();
-    QueryResult queryResult = CharacterDatabase.Query("SELECT nextClass, activeClassQuests FROM mod_multi_class_character_controller WHERE guid = {}", player->GetGUID().GetCounter());
-    if (!queryResult || queryResult->GetRowCount() == 0)
-    {
-        controllerData.NextClass = player->getClass();
-        controllerData.ActiveClassQuests = CLASS_NONE;
-        //CharacterDatabase.DirectExecute("INSERT IGNORE INTO mod_multi_class_character_controller (guid, nextClass, activeClassQuests) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), player->getClass(), CLASS_NONE);
-    }
-    else
-    {
-        Field* fields = queryResult->Fetch();
-        controllerData.NextClass = fields[0].Get<uint8>();
-        controllerData.ActiveClassQuests = fields[1].Get<uint8>();
-    }
-    return controllerData;
-}
-
-PlayerCharacterClassSettings MultiClassMod::GetPlayerCharacterClassSettings(Player* player, uint8 classID)
-{
-    PlayerCharacterClassSettings classSettings;
-    classSettings.GUID = player->GetGUID().GetCounter();
-    classSettings.ClassID = classID;
-    QueryResult queryResult = CharacterDatabase.Query("SELECT useSharedQuests FROM mod_multi_class_character_class_settings WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
-    if (!queryResult || queryResult->GetRowCount() == 0)
-    {
-        classSettings.UseSharedQuests = true;
-    }
-    else
-    {
-        Field* fields = queryResult->Fetch();
-        classSettings.UseSharedQuests = fields[0].Get<uint8>() == 1 ? true : false;
-    }
-    return classSettings;
-}
-
-void MultiClassMod::SavePlayerCharacterClassSettings(PlayerCharacterClassSettings classSettings)
-{
-    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_class_settings` (`guid`, `class`, `useSharedQuests`) VALUES ({}, {}, {})",
-        classSettings.GUID,
-        classSettings.ClassID,
-        classSettings.UseSharedQuests == true ? 1 : 0);
-}
-
 bool MultiClassMod::DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass)
 {
     QueryResult queryResult = CharacterDatabase.Query("SELECT guid, class FROM mod_multi_class_characters WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), lookupClass);
@@ -114,35 +68,6 @@ bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
         return false;
     else
         return true;
-}
-
-void MultiClassMod::QueueClassSwitch(Player* player, uint8 nextClass)
-{
-    bool isNewClass = !DoesSavedClassDataExistForPlayer(player, nextClass);
-    CharacterDatabase.DirectExecute("INSERT IGNORE INTO `mod_multi_class_next_switch_class` (guid, nextclass, isnew) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), nextClass, isNewClass);
-}
-
-QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
-{
-    QueuedClassSwitch queuedClassSwitch;
-    QueryResult queryResult = CharacterDatabase.Query("SELECT nextclass, IsNew FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
-    if (!queryResult || queryResult->GetRowCount() == 0)
-    {
-        queuedClassSwitch.classID = CLASS_NONE;
-        queuedClassSwitch.isNew = false;
-    }
-    else
-    {
-        Field* fields = queryResult->Fetch();
-        queuedClassSwitch.classID = fields[0].Get<uint8>();
-        queuedClassSwitch.isNew = fields[1].Get<bool>();
-    }
-    return queuedClassSwitch;
-}
-
-void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
-{
-    CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
 }
 
 // Returns a list of MasterSkills that the player knows
@@ -708,9 +633,6 @@ bool MultiClassMod::LoadClassAbilityData()
 
 bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass)
 {
-    // Delete the switch row if it's already there
-    DeleteQueuedClassSwitch(player);
-
     // Don't do anything if we're already that class
     if (newClass == player->getClass())
     {
@@ -724,7 +646,9 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     }
 
     // Add the switch event
-    QueueClassSwitch(player, newClass);
+    PlayerControllerData controllerData = GetPlayerControllerData(player);
+    controllerData.NextClass = newClass;
+    SetPlayerControllerData(controllerData);
     switch (newClass)
     {
     case CLASS_WARRIOR: handler->PSendSysMessage("You will become a Warrior on the next login"); break;
@@ -742,15 +666,14 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     return true;
 }
 
-bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
+bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player, PlayerControllerData controllerData)
 {
     // Only take action if there's a class switch queued
-    QueuedClassSwitch queuedClassSwitch = GetQueuedClassSwitch(player);
-    if (queuedClassSwitch.classID == CLASS_NONE)
+    if (controllerData.NextClass == player->getClass())
         return true;
 
-    uint8 nextClass = queuedClassSwitch.classID;
-    bool isNew = queuedClassSwitch.isNew;
+    uint8 nextClass = controllerData.NextClass;
+    bool isNew = DoesSavedClassDataExistForPlayer(player, controllerData.NextClass);
 
     // Set up the transaction
     CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
@@ -808,19 +731,6 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
 
     return true;
 }
-
-bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
-{
-    // Only take action if there's a class switch queued
-    QueuedClassSwitch queuedClassSwitch = GetQueuedClassSwitch(player);
-    if (queuedClassSwitch.classID == CLASS_NONE)
-        return true;
-
-    // Clear the class switch
-    DeleteQueuedClassSwitch(player);
-    return true;
-}
-
 bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 {
     // Delete every mod table record with this player guid
@@ -832,7 +742,6 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_aura WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_spell WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_skills WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_next_switch_class WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
@@ -840,6 +749,7 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_controller WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_class_settings WHERE guid = {}", playerGUID);
     CharacterDatabase.CommitTransaction(transaction);
     return true;
 }
@@ -922,13 +832,13 @@ void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 player
 // Enables or Disables quest sharing for the current player class
 bool MultiClassMod::PerformChangeQuestShareForCurrentClass(Player* player, bool useSharedQuests)
 {
-    PlayerCharacterClassSettings classSettings = GetPlayerCharacterClassSettings(player, player->getClass());
+    PlayerClassSettings classSettings = GetPlayerClassSettings(player, player->getClass());
     if (classSettings.UseSharedQuests == useSharedQuests)
         return false;
     else
     {
         classSettings.UseSharedQuests = useSharedQuests;
-        SavePlayerCharacterClassSettings(classSettings);
+        SetPlayerClassSettings(classSettings);
         return true;
     }
 }
@@ -961,6 +871,59 @@ bool MultiClassMod::IsSpellAMasterSkill(uint32 spellID)
         return true;
 }
 
+PlayerControllerData MultiClassMod::GetPlayerControllerData(Player* player)
+{
+    PlayerControllerData controllerData;
+    controllerData.GUID = player->GetGUID().GetCounter();
+    QueryResult queryResult = CharacterDatabase.Query("SELECT nextClass, activeClassQuests FROM mod_multi_class_character_controller WHERE guid = {}", player->GetGUID().GetCounter());
+    if (!queryResult || queryResult->GetRowCount() == 0)
+    {
+        controllerData.NextClass = player->getClass();
+        controllerData.ActiveClassQuests = CLASS_NONE;
+    }
+    else
+    {
+        Field* fields = queryResult->Fetch();
+        controllerData.NextClass = fields[0].Get<uint8>();
+        controllerData.ActiveClassQuests = fields[1].Get<uint8>();
+    }
+    return controllerData;
+}
+
+void MultiClassMod::SetPlayerControllerData(PlayerControllerData controllerData)
+{
+    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_controller` (`guid`, `nextClass`, `activeClassQuests`) VALUES ({}, {}, {})",
+        controllerData.GUID,
+        controllerData.NextClass,
+        controllerData.ActiveClassQuests);
+}
+
+PlayerClassSettings MultiClassMod::GetPlayerClassSettings(Player* player, uint8 classID)
+{
+    PlayerClassSettings classSettings;
+    classSettings.GUID = player->GetGUID().GetCounter();
+    classSettings.ClassID = classID;
+    QueryResult queryResult = CharacterDatabase.Query("SELECT useSharedQuests FROM mod_multi_class_character_class_settings WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
+    if (!queryResult || queryResult->GetRowCount() == 0)
+    {
+        classSettings.UseSharedQuests = true;
+    }
+    else
+    {
+        Field* fields = queryResult->Fetch();
+        classSettings.UseSharedQuests = fields[0].Get<uint8>() == 1 ? true : false;
+    }
+    return classSettings;
+}
+
+void MultiClassMod::SetPlayerClassSettings(PlayerClassSettings classSettings)
+{
+    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_class_settings` (`guid`, `class`, `useSharedQuests`) VALUES ({}, {}, {})",
+        classSettings.GUID,
+        classSettings.ClassID,
+        classSettings.UseSharedQuests == true ? 1 : 0);
+}
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -976,11 +939,6 @@ public:
             ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class change |rto change classes.");
         }	    
 
-        if (!MultiClass->PerformQueuedClassSwitchOnLogin(player))
-        {
-            LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on login for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
-        }
-
         MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
     }
@@ -990,7 +948,8 @@ public:
         if (ConfigEnabled == false)
             return;
 
-        if (!MultiClass->PerformQueuedClassSwitchOnLogout(player))
+        PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
+        if (!MultiClass->PerformQueuedClassSwitchOnLogout(player, controllerData))
         {
             LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
         }

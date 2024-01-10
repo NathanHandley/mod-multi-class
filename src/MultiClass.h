@@ -47,21 +47,14 @@ public:
     std::list<MultiClassSpell> Spells;
 };
 
-// Delete?
-struct QueuedClassSwitch
-{
-    uint8 classID;
-    bool isNew;
-};
-
-struct PlayerCharacterClassSettings
+struct PlayerClassSettings
 {
     uint32 GUID;
     uint8 ClassID;
     bool UseSharedQuests;
 };
 
-struct PlayerCharacterControllerData
+struct PlayerControllerData
 {
     uint32 GUID;
     uint8 NextClass;
@@ -77,15 +70,8 @@ private:
     std::set<uint32> ClassSpellIDs;
     std::map<uint32, MasterSkill> MasterSkillsBySpellID;
 
-    PlayerCharacterControllerData GetPlayerCharacterControllerData(Player* player);
-    PlayerCharacterClassSettings GetPlayerCharacterClassSettings(Player* player, uint8 classID);
-    void SavePlayerCharacterClassSettings(PlayerCharacterClassSettings classSettings);
-
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
-    void QueueClassSwitch(Player* player, uint8 nextClass);
-    QueuedClassSwitch GetQueuedClassSwitch(Player* player);
-    void DeleteQueuedClassSwitch(Player* player);
     std::list<MasterSkill> GetKnownMasterSkillsForPlayer(Player* player);
     std::list<MasterSkill> GetKnownMasterSkillsForPlayerForClass(Player* player, uint8 classID);
 
@@ -119,8 +105,7 @@ public:
     bool LoadClassAbilityData();
 
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
-    bool PerformQueuedClassSwitchOnLogout(Player* player);
-    bool PerformQueuedClassSwitchOnLogin(Player* player);
+    bool PerformQueuedClassSwitchOnLogout(Player* player, PlayerControllerData controllerData);
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromMasterSkills(Player* player);
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
@@ -129,6 +114,11 @@ public:
 
     std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);
+
+    PlayerControllerData GetPlayerControllerData(Player* player);
+    void SetPlayerControllerData(PlayerControllerData controllerData);
+    PlayerClassSettings GetPlayerClassSettings(Player* player, uint8 classID);
+    void SetPlayerClassSettings(PlayerClassSettings classSettings);
 };
 
 std::string GetClassStringFromID(uint8 classID);
