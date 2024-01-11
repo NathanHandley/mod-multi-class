@@ -1290,7 +1290,7 @@ public:
         if (!*args)
         {
             handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
-            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off'");
             handler->PSendSysMessage("Requires logging out to take effect");
             return true;
         }
@@ -1327,7 +1327,7 @@ public:
         else
         {
             handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
-            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off'");
             handler->PSendSysMessage("Valid Values: on, off.");
             std::string enteredValueLine = "Entered Value was ";
             enteredValueLine.append(enteredValue);
