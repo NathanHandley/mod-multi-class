@@ -47,10 +47,26 @@ public:
     std::list<MultiClassSpell> Spells;
 };
 
-struct QueuedClassSwitch
+struct PlayerClassInfoItem
 {
-    uint8 classID;
-    bool isNew;
+    uint8 ClassID;
+    std::string ClassName;
+    uint8 Level;
+    uint8 UseSharedQuests;
+};
+
+struct PlayerClassSettings
+{
+    uint32 GUID;
+    uint8 ClassID;
+    bool UseSharedQuests;
+};
+
+struct PlayerControllerData
+{
+    uint32 GUID;
+    uint8 NextClass;
+    uint8 ActiveClassQuests;
 };
 
 class MultiClassMod
@@ -64,9 +80,6 @@ private:
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
-    void QueueClassSwitch(Player* player, uint8 nextClass);
-    QueuedClassSwitch GetQueuedClassSwitch(Player* player);
-    void DeleteQueuedClassSwitch(Player* player);
     std::list<MasterSkill> GetKnownMasterSkillsForPlayer(Player* player);
     std::list<MasterSkill> GetKnownMasterSkillsForPlayerForClass(Player* player, uint8 classID);
 
@@ -84,6 +97,7 @@ private:
     void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
 
+    void AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* player, uint16 skillID, std::array<uint32, 6> skillSpellIDs, std::list<int32>& inOutSpellUnlearns, std::list<int32>& inOutSpellLearns);
     void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
     uint8 GetTokenCountToIssueForPlayer(Player* player, uint8 classID);
     bool RefundTokenCountForPlayerClass(Player* player, uint8 classID, uint8 tokenCountToRefund);
@@ -100,15 +114,22 @@ public:
     bool LoadClassAbilityData();
 
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
-    bool PerformQueuedClassSwitchOnLogout(Player* player);
-    bool PerformQueuedClassSwitchOnLogin(Player* player);
+    bool MarkChangeQuestShareForCurrentClassOnNextLogout(Player* player, bool doQuestShare);
+    bool PerformClassSwitch(Player* player, PlayerControllerData controllerData);
+    bool PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDataClass, uint8 nextQuestDataClass);
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromMasterSkills(Player* player);
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
-    void ResetMasterSkillsForPlayerClass(ChatHandler* handler, Player* player, uint8 playerClass);
+    void ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass);
 
-    std::map<uint8, uint8> GetOtherClassLevelsByClassForPlayer(Player* player);
+    std::map<uint8, uint8> GetClassLevelsByClassForPlayer(Player* player);
+    std::map<std::string, PlayerClassInfoItem> GetPlayerClassInfoByClassNameForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);
+
+    PlayerControllerData GetPlayerControllerData(Player* player);
+    void SetPlayerControllerData(PlayerControllerData controllerData);
+    PlayerClassSettings GetPlayerClassSettings(Player* player, uint8 classID);
+    void SetPlayerClassSettings(PlayerClassSettings classSettings);
 };
 
 std::string GetClassStringFromID(uint8 classID);

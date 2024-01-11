@@ -70,35 +70,6 @@ bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
         return true;
 }
 
-void MultiClassMod::QueueClassSwitch(Player* player, uint8 nextClass)
-{
-    bool isNewClass = !DoesSavedClassDataExistForPlayer(player, nextClass);
-    CharacterDatabase.DirectExecute("INSERT IGNORE INTO `mod_multi_class_next_switch_class` (guid, nextclass, isnew) VALUES ({}, {}, {})", player->GetGUID().GetCounter(), nextClass, isNewClass);
-}
-
-QueuedClassSwitch MultiClassMod::GetQueuedClassSwitch(Player* player)
-{
-    QueuedClassSwitch queuedClassSwitch;
-    QueryResult queryResult = CharacterDatabase.Query("SELECT nextclass, IsNew FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
-    if (!queryResult || queryResult->GetRowCount() == 0)
-    {
-        queuedClassSwitch.classID = CLASS_NONE;
-        queuedClassSwitch.isNew = false;
-    }
-    else
-    {
-        Field* fields = queryResult->Fetch();
-        queuedClassSwitch.classID = fields[0].Get<uint8>();
-        queuedClassSwitch.isNew = fields[1].Get<bool>();
-    }
-    return queuedClassSwitch;
-}
-
-void MultiClassMod::DeleteQueuedClassSwitch(Player* player)
-{
-    CharacterDatabase.DirectExecute("DELETE FROM `mod_multi_class_next_switch_class` WHERE guid = {}", player->GetGUID().GetCounter());
-}
-
 // Returns a list of MasterSkills that the player knows
 list<MasterSkill> MultiClassMod::GetKnownMasterSkillsForPlayer(Player* player)
 {
@@ -390,6 +361,41 @@ void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint
     }
 }
 
+// Modifies a list of spell learn and unlearns for the passed gathering skills
+void MultiClassMod::AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* player, uint16 skillID, array<uint32, 6> skillSpellIDs, list<int32>& inOutSpellUnlearns, list<int32>& inOutSpellLearns)
+{
+    // Get level
+    uint8 playerLevel = player->GetLevel();
+
+    uint32 properSpellID = 0;
+    if (player->HasSkill(skillID))
+    {
+        uint16 skillValue = player->GetSkillValue(skillID);
+        if (skillValue >= 450 && playerLevel >= 55)
+            properSpellID = skillSpellIDs[0];
+        else if (skillValue >= 375 && playerLevel >= 40)
+            properSpellID = skillSpellIDs[1];
+        else if (skillValue >= 300 && playerLevel >= 25)
+            properSpellID = skillSpellIDs[2];
+        else if (skillValue >= 225 && playerLevel >= 10)
+            properSpellID = skillSpellIDs[3];
+        else if (skillValue >= 150)
+            properSpellID = skillSpellIDs[4];
+        else if (skillValue >= 75)
+            properSpellID = skillSpellIDs[5];
+
+        for (uint32 skillSpellID : skillSpellIDs)
+        {
+            if (properSpellID == skillSpellID)
+                inOutSpellLearns.push_back(skillSpellID);
+            else if (!player->HasSpell(skillSpellID))
+                continue;
+            else if (properSpellID == 0 || properSpellID != skillSpellID)
+                inOutSpellUnlearns.push_back(skillSpellID);
+        }
+    }
+}
+
 // Returns a list of what spells should be learned and unlearned for a class
 void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32>& outSpellUnlearns, list<int32>& outSpellLearns)
 {
@@ -399,6 +405,9 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
 
     // Get the known Master Skills
     list<MasterSkill> knownMasterSkills = GetKnownMasterSkillsForPlayer(player);
+
+    // Get level
+    uint8 playerLevel = player->GetLevel();
 
     // Go through the master skills and see what the player should know from them now
     set<uint32> shouldKnowSpellIDsFromMasterSkills;
@@ -419,15 +428,26 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
         }
     }
 
-    // Go through what class spells the player does know, and mark removal for any that don't belong to the player's class and aren't in the master skill list
+    // If player has a gathering skill, determine what rank they should have and set mark accordingly
+    
+    // Herbalism - Lifeblood
+    //AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 182, { 55503, 55502, 55501, 55500, 55480, 55428 }, outSpellUnlearns, outSpellLearns);
+
+    // Mining - Toughness
+    AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 186, { 53040, 53124, 53123, 53122, 53121, 53120 }, outSpellUnlearns, outSpellLearns);
+    
+    // Skinning - Master of Anatomy
+    AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 393, { 53666, 53665, 53664, 53663, 53662, 53125 }, outSpellUnlearns, outSpellLearns);
+
+    // Go through what class spells the player does know, and mark removal for any that don't belong to the player's class, aren't in the master skill list, or are invalid profession spells
     for (auto& curSpell : player->GetSpellMap())
     {
-        // Skip non-class spells
-        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
-            continue;
-
         // Skip already deleted spells
         if (curSpell.second->State == PLAYERSPELL_REMOVED)
+            continue;
+
+        // Skip non class spells
+        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
             continue;
 
         // Skip these class spells
@@ -453,7 +473,7 @@ uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player, uint8 classID
         playersIssueClassLevel = player->GetLevel();
     else
     {
-        map<uint8, uint8> levelsByClassForPlayer = GetOtherClassLevelsByClassForPlayer(player);
+        map<uint8, uint8> levelsByClassForPlayer = GetClassLevelsByClassForPlayer(player);
         if (levelsByClassForPlayer.find(classID) != levelsByClassForPlayer.end())
             playersIssueClassLevel = levelsByClassForPlayer[classID];
     }
@@ -662,9 +682,6 @@ bool MultiClassMod::LoadClassAbilityData()
 
 bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass)
 {
-    // Delete the switch row if it's already there
-    DeleteQueuedClassSwitch(player);
-
     // Don't do anything if we're already that class
     if (newClass == player->getClass())
     {
@@ -678,7 +695,9 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     }
 
     // Add the switch event
-    QueueClassSwitch(player, newClass);
+    PlayerControllerData controllerData = GetPlayerControllerData(player);
+    controllerData.NextClass = newClass;
+    SetPlayerControllerData(controllerData);
     switch (newClass)
     {
     case CLASS_WARRIOR: handler->PSendSysMessage("You will become a Warrior on the next login"); break;
@@ -696,15 +715,24 @@ bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* pl
     return true;
 }
 
-bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
+// Enables or Disables quest sharing for the current player class
+bool MultiClassMod::MarkChangeQuestShareForCurrentClassOnNextLogout(Player* player, bool useSharedQuests)
 {
-    // Only take action if there's a class switch queued
-    QueuedClassSwitch queuedClassSwitch = GetQueuedClassSwitch(player);
-    if (queuedClassSwitch.classID == CLASS_NONE)
+    PlayerClassSettings classSettings = GetPlayerClassSettings(player, player->getClass());
+    if (classSettings.UseSharedQuests == useSharedQuests)
+        return false;
+    else
+    {
+        classSettings.UseSharedQuests = useSharedQuests;
+        SetPlayerClassSettings(classSettings);
         return true;
+    }
+}
 
-    uint8 nextClass = queuedClassSwitch.classID;
-    bool isNew = queuedClassSwitch.isNew;
+bool MultiClassMod::PerformClassSwitch(Player* player, PlayerControllerData controllerData)
+{
+    uint8 nextClass = controllerData.NextClass;
+    bool isNew = !DoesSavedClassDataExistForPlayer(player, controllerData.NextClass);
 
     // Set up the transaction
     CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
@@ -763,15 +791,29 @@ bool MultiClassMod::PerformQueuedClassSwitchOnLogout(Player* player)
     return true;
 }
 
-bool MultiClassMod::PerformQueuedClassSwitchOnLogin(Player* player)
+bool MultiClassMod::PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDataClass, uint8 nextQuestDataClass)
 {
-    // Only take action if there's a class switch queued
-    QueuedClassSwitch queuedClassSwitch = GetQueuedClassSwitch(player);
-    if (queuedClassSwitch.classID == CLASS_NONE)
-        return true;
+    // Set up the transaction
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
 
-    // Clear the class switch
-    DeleteQueuedClassSwitch(player);
+    // Delete the old mod quest data at the target
+    transaction->Append("DELETE FROM `mod_multi_class_character_queststatus` WHERE guid = {} AND class = {}", playerGUID, prevQuestDataClass);
+    transaction->Append("DELETE FROM `mod_multi_class_character_queststatus_rewarded` WHERE guid = {} AND class = {}", playerGUID, prevQuestDataClass);
+
+    // Copy this quest data into the mod quest data
+    transaction->Append("INSERT INTO `mod_multi_class_character_queststatus` (`guid`, `class`, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount`) SELECT {}, {}, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount` FROM character_queststatus WHERE guid = {}", playerGUID, prevQuestDataClass, playerGUID);
+    transaction->Append("INSERT INTO `mod_multi_class_character_queststatus_rewarded` (`guid`, `class`, `quest`, `active`) SELECT {}, {}, `quest`, `active` FROM character_queststatus_rewarded WHERE guid = {}", playerGUID, prevQuestDataClass, playerGUID);
+    
+    // Delete the active quest data
+    transaction->Append("DELETE FROM `character_queststatus` WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM `character_queststatus_rewarded` WHERE guid = {}", playerGUID);
+
+    // Insert in the related quest data from mod
+    transaction->Append("INSERT INTO `character_queststatus` (`guid`, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount`) SELECT {}, `quest`, `status`, `explored`, `timer`, `mobcount1`, `mobcount2`, `mobcount3`, `mobcount4`, `itemcount1`, `itemcount2`, `itemcount3`, `itemcount4`, `itemcount5`, `itemcount6`, `playercount` FROM mod_multi_class_character_queststatus WHERE guid = {} AND class = {}", playerGUID, playerGUID, nextQuestDataClass);
+    transaction->Append("INSERT INTO `character_queststatus_rewarded` (`guid`, `quest`, `active`) SELECT {}, `quest`, `active` FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {} AND class = {}", playerGUID, playerGUID, nextQuestDataClass);
+
+    // Commit the transaction
+    CharacterDatabase.CommitTransaction(transaction);
     return true;
 }
 
@@ -786,11 +828,14 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_aura WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_spell WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_skills WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_next_switch_class WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_tokens WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_queststatus WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_controller WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_class_settings WHERE guid = {}", playerGUID);
     CharacterDatabase.CommitTransaction(transaction);
     return true;
 }
@@ -811,11 +856,18 @@ void MultiClassMod::PerformKnownSpellUpdateFromMasterSkills(Player* player)
                 player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
         }
 
-        // Perform learns
+        // Perform learns, but only temporary ones if it's a gather profession buff spell
+        set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
         for (auto& spellToLearn : spellsToLearn)
         {
             if (!player->HasSpell(spellToLearn))
-                player->learnSpell(spellToLearn);
+            {
+                if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
+                    player->learnSpell(spellToLearn, true);
+                else
+                    player->learnSpell(spellToLearn);
+                
+            }
         }
     }
 }
@@ -848,7 +900,7 @@ bool MultiClassMod::PerformTokenIssuesForPlayerClass(Player* player, uint8 class
 }
 
 // Clears any class-specific master skills for the player, and returns the tokens
-void MultiClassMod::ResetMasterSkillsForPlayerClass(ChatHandler* handler, Player* player, uint8 playerClass)
+void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass)
 {
     // Get a list of master skills to delete
     list<MasterSkill> knownMasterSkillsForClass = GetKnownMasterSkillsForPlayerForClass(player, playerClass);
@@ -870,10 +922,12 @@ void MultiClassMod::ResetMasterSkillsForPlayerClass(ChatHandler* handler, Player
     PerformTokenIssuesForPlayerClass(player, playerClass);
 }
 
+
 // Returns any class levels for classes that the player is not
-map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* player)
+map<uint8, uint8> MultiClassMod::GetClassLevelsByClassForPlayer(Player* player)
 {
-    map<uint8, uint8> levelByClass;
+    // Pull the other class levels first
+    map<uint8, uint8> levelsByClass;
     QueryResult classQueryResult = CharacterDatabase.Query("SELECT `class`, `level` FROM mod_multi_class_characters WHERE guid = {} AND class <> {}", player->GetGUID().GetCounter(), player->getClass());
     if (classQueryResult)
     {
@@ -882,11 +936,41 @@ map<uint8, uint8> MultiClassMod::GetOtherClassLevelsByClassForPlayer(Player* pla
             Field* fields = classQueryResult->Fetch();
             uint8 returnedClass = fields[0].Get<uint8>();
             uint8 returnedLevel = fields[1].Get<uint8>();
-            levelByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
+            levelsByClass.insert(pair<uint8, uint8>(returnedClass, returnedLevel));
         } while (classQueryResult->NextRow());
 
     }
-    return levelByClass;
+
+    // Add this class level
+    levelsByClass.insert(pair<uint8, uint8>(player->getClass(), player->GetLevel()));
+
+    return levelsByClass;
+}
+
+// Returns the full class info set for the player
+map<string, PlayerClassInfoItem> MultiClassMod::GetPlayerClassInfoByClassNameForPlayer(Player* player)
+{
+    map<string, PlayerClassInfoItem> playerClassInfoByClass;
+
+    // Get levels for classes first, and populate the base list
+    map<uint8, uint8> classLevelsByClass = GetClassLevelsByClassForPlayer(player);
+    for (auto& curClassLevel : classLevelsByClass)
+    {
+        PlayerClassInfoItem curClassInfo;
+        curClassInfo.ClassID = curClassLevel.first;
+        curClassInfo.ClassName = GetClassStringFromID(curClassInfo.ClassID);
+        curClassInfo.Level = curClassLevel.second;
+        playerClassInfoByClass.insert(pair<string, PlayerClassInfoItem>(curClassInfo.ClassName, curClassInfo));
+    }
+
+    // Get the settings to populate the remaining data
+    for (auto& playerClassInfoItem : playerClassInfoByClass)
+    {
+        PlayerClassSettings curClassSettings = GetPlayerClassSettings(player, playerClassInfoItem.second.ClassID);
+        playerClassInfoItem.second.UseSharedQuests = curClassSettings.UseSharedQuests;
+    }
+
+    return playerClassInfoByClass;
 }
 
 // Returns true if the passed spellID is a master skill
@@ -896,6 +980,59 @@ bool MultiClassMod::IsSpellAMasterSkill(uint32 spellID)
         return false;
     else
         return true;
+}
+
+PlayerControllerData MultiClassMod::GetPlayerControllerData(Player* player)
+{
+    PlayerControllerData controllerData;
+    controllerData.GUID = player->GetGUID().GetCounter();
+    QueryResult queryResult = CharacterDatabase.Query("SELECT nextClass, activeClassQuests FROM mod_multi_class_character_controller WHERE guid = {}", player->GetGUID().GetCounter());
+    if (!queryResult || queryResult->GetRowCount() == 0)
+    {
+        controllerData.NextClass = player->getClass();
+        controllerData.ActiveClassQuests = CLASS_NONE;
+    }
+    else
+    {
+        Field* fields = queryResult->Fetch();
+        controllerData.NextClass = fields[0].Get<uint8>();
+        controllerData.ActiveClassQuests = fields[1].Get<uint8>();
+    }
+    return controllerData;
+}
+
+void MultiClassMod::SetPlayerControllerData(PlayerControllerData controllerData)
+{
+    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_controller` (`guid`, `nextClass`, `activeClassQuests`) VALUES ({}, {}, {})",
+        controllerData.GUID,
+        controllerData.NextClass,
+        controllerData.ActiveClassQuests);
+}
+
+PlayerClassSettings MultiClassMod::GetPlayerClassSettings(Player* player, uint8 classID)
+{
+    PlayerClassSettings classSettings;
+    classSettings.GUID = player->GetGUID().GetCounter();
+    classSettings.ClassID = classID;
+    QueryResult queryResult = CharacterDatabase.Query("SELECT useSharedQuests FROM mod_multi_class_character_class_settings WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
+    if (!queryResult || queryResult->GetRowCount() == 0)
+    {
+        classSettings.UseSharedQuests = true;
+    }
+    else
+    {
+        Field* fields = queryResult->Fetch();
+        classSettings.UseSharedQuests = fields[0].Get<uint8>() == 1 ? true : false;
+    }
+    return classSettings;
+}
+
+void MultiClassMod::SetPlayerClassSettings(PlayerClassSettings classSettings)
+{
+    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_class_settings` (`guid`, `class`, `useSharedQuests`) VALUES ({}, {}, {})",
+        classSettings.GUID,
+        classSettings.ClassID,
+        classSettings.UseSharedQuests == true ? 1 : 0);
 }
 
 class MultiClass_PlayerScript : public PlayerScript
@@ -910,13 +1047,8 @@ public:
 
         if (ConfigDisplayInstructionMessage)
         {
-            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class change |rto change classes.");
+            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
         }	    
-
-        if (!MultiClass->PerformQueuedClassSwitchOnLogin(player))
-        {
-            LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on login for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
-        }
 
         MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
@@ -927,9 +1059,36 @@ public:
         if (ConfigEnabled == false)
             return;
 
-        if (!MultiClass->PerformQueuedClassSwitchOnLogout(player))
+        PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
+        PlayerClassSettings nextClassSettings = MultiClass->GetPlayerClassSettings(player, controllerData.NextClass);
+
+        // Class switch
+        if (controllerData.NextClass != player->getClass())
         {
-            LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            if (!MultiClass->PerformClassSwitch(player, controllerData))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully complete the class switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+        }
+
+        // Quests Change
+        if (nextClassSettings.UseSharedQuests == true && controllerData.ActiveClassQuests != CLASS_NONE)
+        {
+            if (!MultiClass->PerformQuestDataSwitch(player->GetGUID().GetCounter(), controllerData.ActiveClassQuests, CLASS_NONE))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully perform quest data switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+            controllerData.ActiveClassQuests = CLASS_NONE;
+            MultiClass->SetPlayerControllerData(controllerData);
+        }
+        else if (nextClassSettings.UseSharedQuests == false && controllerData.ActiveClassQuests != controllerData.NextClass)
+        {
+            if (!MultiClass->PerformQuestDataSwitch(player->GetGUID().GetCounter(), controllerData.ActiveClassQuests, controllerData.NextClass))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully perform quest data switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+            controllerData.ActiveClassQuests = controllerData.NextClass;
+            MultiClass->SetPlayerControllerData(controllerData);
         }
     }
 
@@ -1031,9 +1190,10 @@ public:
     {
         static std::vector<ChatCommand> CommandTable =
         {
-            { "change",         SEC_PLAYER,                            true, &HandleMultiClassChangeClass,              "Changes your class" },
-            { "list",           SEC_PLAYER,                            true, &HandleMultiClassListClasses,              "Shows the level of all the classes you have on this character" },
-            { "resetmasterskills",    SEC_PLAYER,                            true, &HandleMultiClassMasterSkillReset,         "Resets spent master tokens for a class" },
+            { "change",             SEC_PLAYER,     true, &HandleMultiClassChangeClass,              "Changes your class" },
+            { "info",               SEC_PLAYER,     true, &HandleMultiClassInfo,              "Shows all your classes, their level, and other properties" },
+            { "sharequests",        SEC_PLAYER,     true, &HandleMultiClassShareQuests,              "Toggle between sharing or not sharing quests on the current class" },
+            { "resetmasterskills",  SEC_PLAYER,     true, &HandleMultiClassMasterSkillReset,         "Resets spent master tokens for a class" },
         };
 
         static std::vector<ChatCommand> commandTable =
@@ -1097,6 +1257,85 @@ public:
         return true;
     }
 
+    static bool HandleMultiClassInfo(ChatHandler* handler, const char* /*args*/)
+    {
+        if (ConfigEnabled == false)
+            return true;
+
+        handler->PSendSysMessage("Class List:");
+
+        // Get the player data
+        Player* player = handler->GetPlayer();
+        map<string, PlayerClassInfoItem> playerClassInfoItems = MultiClass->GetPlayerClassInfoByClassNameForPlayer(player);
+
+        // Write the information out
+        for (auto& playerClassInfoItem : playerClassInfoItems)
+        {
+            string currentLine = " - " + playerClassInfoItem.second.ClassName + "(" + std::to_string(playerClassInfoItem.second.Level) + "), shared quests is ";
+            if (playerClassInfoItem.second.UseSharedQuests)
+                currentLine += "|cff4CFF00ON|r";
+            else
+                currentLine += "|cffff0000OFF|r";
+            handler->PSendSysMessage(currentLine.c_str());
+        }
+
+        return true;
+    }
+
+    static bool HandleMultiClassShareQuests(ChatHandler* handler, const char* args)
+    {
+        if (ConfigEnabled == false)
+            return true;
+
+        if (!*args)
+        {
+            handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
+            handler->PSendSysMessage("Requires logging out to take effect");
+            return true;
+        }
+
+        std::string enteredValue = strtok((char*)args, " ");
+        if (enteredValue.starts_with("ON") || enteredValue.starts_with("on") || enteredValue.starts_with("On"))
+        {
+            Player* player = handler->GetPlayer();
+            if (MultiClass->MarkChangeQuestShareForCurrentClassOnNextLogout(player, true) == true)
+            {
+                handler->PSendSysMessage("Success. Shared quests will be used on this class next login");
+                return true;
+            }
+            else
+            {
+                handler->PSendSysMessage("Share Quests is already 'on' for this class, so no action is taken");
+                return true;
+            }
+        }
+        else if (enteredValue.starts_with("OF") || enteredValue.starts_with("Of") || enteredValue.starts_with("of"))
+        {
+            Player* player = handler->GetPlayer();
+            if (MultiClass->MarkChangeQuestShareForCurrentClassOnNextLogout(player, false) == true)
+            {
+                handler->PSendSysMessage("Success. Shared quests will no longer be used on this class next login");
+                return true;
+            }
+            else
+            {
+                handler->PSendSysMessage("Share Quests is already 'off' for this class, so no action is taken");
+                return true;
+            }
+        }
+        else
+        {
+            handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
+            handler->PSendSysMessage("Valid Values: on, off.");
+            std::string enteredValueLine = "Entered Value was ";
+            enteredValueLine.append(enteredValue);
+            handler->PSendSysMessage(enteredValueLine.c_str());
+            return true;
+        }
+    }
+
     static bool HandleMultiClassMasterSkillReset(ChatHandler* handler, const char* args)
     {
         if (ConfigEnabled == false)
@@ -1144,33 +1383,10 @@ public:
         }
 
         Player* player = handler->GetPlayer();
-        MultiClass->ResetMasterSkillsForPlayerClass(handler, player, classInt);
+        MultiClass->ResetMasterSkillsForPlayerClass(player, classInt);
         player->SaveToDB(false, false);
 
         // Class change accepted
-        return true;
-    }
-
-    static bool HandleMultiClassListClasses(ChatHandler* handler, const char* /*args*/)
-    {
-        if (ConfigEnabled == false)
-            return true;
-
-        handler->PSendSysMessage("Your classes:");
-
-        // Get levels of the other classes
-        Player* player = handler->GetPlayer();
-        map<uint8, uint8> otherClassLevels = MultiClass->GetOtherClassLevelsByClassForPlayer(player);
-
-        // Output all of the classes, starting with this one
-        string currentLine = " - " + GetClassStringFromID(player->getClass()) + "(" + std::to_string(player->GetLevel()) + ")";
-        handler->PSendSysMessage(currentLine.c_str());
-        for (auto& curClassLevel : otherClassLevels)
-        {
-            currentLine = " - " + GetClassStringFromID(curClassLevel.first) + "(" + std::to_string(curClassLevel.second) + ")";
-            handler->PSendSysMessage(currentLine.c_str());
-        }
-
         return true;
     }
 };
