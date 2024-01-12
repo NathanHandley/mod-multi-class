@@ -44,6 +44,7 @@ static bool ConfigEnableMasterSkills = true;            // If true, the player c
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
 static uint8 ConfigLevelsPerToken = 10;                 // How many levels per token issued
 static list<uint8> ConfigBonusTokenLevels({81, 82, 83});// Levels where an extra token is awarded
+static bool ConfigUsingTransmogMod = true;              // If true, factor for the transmog fakeEntry table records
 
 MultiClassMod::MultiClassMod()
 {
@@ -844,32 +845,28 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 
 void MultiClassMod::PerformKnownSpellUpdateFromMasterSkills(Player* player)
 {
-    // Handle cross class spells
-    if (ConfigEnableMasterSkills)
+    list<int32> spellsToUnlearn;
+    list<int32> spellsToLearn;
+    GetSpellLearnAndUnlearnsForPlayer(player, spellsToUnlearn, spellsToLearn);
+
+    // Perform unlearns
+    for (auto& spellToUnlearn : spellsToUnlearn)
     {
-        list<int32> spellsToUnlearn;
-        list<int32> spellsToLearn;
-        GetSpellLearnAndUnlearnsForPlayer(player, spellsToUnlearn, spellsToLearn);
+        if (player->HasSpell(spellToUnlearn))
+            player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
+    }
 
-        // Perform unlearns
-        for (auto& spellToUnlearn : spellsToUnlearn)
+    // Perform learns, but only temporary ones if it's a gather profession buff spell
+    set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
+    for (auto& spellToLearn : spellsToLearn)
+    {
+        if (!player->HasSpell(spellToLearn))
         {
-            if (player->HasSpell(spellToUnlearn))
-                player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
-        }
-
-        // Perform learns, but only temporary ones if it's a gather profession buff spell
-        set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
-        for (auto& spellToLearn : spellsToLearn)
-        {
-            if (!player->HasSpell(spellToLearn))
-            {
-                if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
-                    player->learnSpell(spellToLearn, true);
-                else
-                    player->learnSpell(spellToLearn);
+            if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
+                player->learnSpell(spellToLearn, true);
+            else
+                player->learnSpell(spellToLearn);
                 
-            }
         }
     }
 }
@@ -935,6 +932,7 @@ map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerC
         curItem.PermEnchant = 0;
         curItem.Slot = i;
         curItem.TempEnchant = 0;
+        curItem.ItemInstanceGUID = 0;
         visibleItems.insert(pair<uint8, PlayerEquipedItemData>(i, curItem));
     }
 
@@ -946,7 +944,7 @@ map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerC
     // Otherwise, retrieve from the database
     else
     {
-        QueryResult queryResult = CharacterDatabase.Query("SELECT CI.`slot`, II.`itemEntry`, II.`enchantments` FROM `mod_multi_class_character_inventory` CI INNER JOIN `item_instance` II on II.guid = CI.item WHERE CI.`bag` = 0 AND CI.`slot` <= 18 AND CI.`guid` = {} AND `class` = {}", player->GetGUID().GetCounter(), classID);
+        QueryResult queryResult = CharacterDatabase.Query("SELECT CI.`slot`, II.`itemEntry`, II.`enchantments`, II.`guid` FROM `mod_multi_class_character_inventory` CI INNER JOIN `item_instance` II on II.guid = CI.item WHERE CI.`bag` = 0 AND CI.`slot` <= 18 AND CI.`guid` = {} AND `class` = {}", player->GetGUID().GetCounter(), classID);
         if (queryResult && queryResult->GetRowCount() > 0)
         {
             do
@@ -955,6 +953,7 @@ map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerC
                 uint8 slot = fields[0].Get<uint8>();
                 uint32 itemID = fields[1].Get<uint32>();
                 string enchantString = fields[2].Get<string>();
+                uint32 itemInstanceGUID = fields[3].Get<uint32>();
 
                 // Break out enchant values
                 std::vector<std::string_view> tokens = Acore::Tokenize(enchantString, ' ', false);
@@ -966,9 +965,33 @@ map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerC
                 visibleItems[slot].ItemID = itemID;
                 visibleItems[slot].PermEnchant = permEnchant;
                 visibleItems[slot].TempEnchant = tempEnchant;
+                visibleItems[slot].ItemInstanceGUID = itemInstanceGUID;
             } while (queryResult->NextRow());
         }
     }
+
+    // If we're using the transmog mod, factor for that by pulling those visuals too
+    if (ConfigUsingTransmogMod)
+    {
+        QueryResult queryResult = CharacterDatabase.Query("SELECT `GUID`, `FakeEntry` FROM custom_transmogrification WHERE `Owner` = {}", player->GetGUID().GetCounter());
+        if (queryResult && queryResult->GetRowCount() > 0)
+        {
+            do
+            {
+                Field* fields = queryResult->Fetch();
+                uint32 itemInstanceGUID = fields[0].Get<uint32>();
+                uint32 fakeItemID = fields[1].Get<uint32>();
+
+                // Replace any matches
+                for (auto& visibleItem : visibleItems)
+                {
+                    if (visibleItem.second.ItemInstanceGUID == itemInstanceGUID)
+                        visibleItem.second.ItemID = fakeItemID;
+                }
+            } while (queryResult->NextRow());
+        }
+    }
+
     return visibleItems;
 }
 
@@ -1099,8 +1122,11 @@ public:
             ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
         }	    
 
-        MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-        MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        if (ConfigEnableMasterSkills)
+        {
+            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
+            MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        }
     }
 
     void OnPreLogout(Player* player)
@@ -1174,8 +1200,11 @@ public:
     {
         if (ConfigEnabled == false)
             return;
-        MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-        MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        if (ConfigEnableMasterSkills)
+        {
+            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
+            MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        }
     }
 
     void OnLearnSpell(Player* player, uint32 spellID)
@@ -1184,7 +1213,7 @@ public:
             return;
 
         // Only take action if a master skill was learned
-        if (MultiClass->IsSpellAMasterSkill(spellID))
+        if (ConfigEnableMasterSkills && MultiClass->IsSpellAMasterSkill(spellID))
         {
             MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         }
@@ -1196,7 +1225,7 @@ public:
             return;
 
         // Only take action if a master skill was forgotten
-        if (MultiClass->IsSpellAMasterSkill(spellID))
+        if (ConfigEnableMasterSkills && MultiClass->IsSpellAMasterSkill(spellID))
         {
             MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         }
@@ -1411,6 +1440,11 @@ public:
     {
         if (ConfigEnabled == false)
             return true;
+        if (!ConfigEnableMasterSkills)
+        {
+            handler->PSendSysMessage("MasterSkills are not enabled");
+            return true;
+        }
 
         if (!*args)
         {

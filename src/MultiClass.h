@@ -75,6 +75,7 @@ struct PlayerEquipedItemData
     uint32 ItemID;
     uint32 TempEnchant;
     uint32 PermEnchant;
+    uint32 ItemInstanceGUID;
 };
 
 class MultiClassMod
