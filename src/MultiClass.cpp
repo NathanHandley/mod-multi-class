@@ -25,6 +25,8 @@
 #include "Opcodes.h"
 #include "Player.h"
 #include "ScriptMgr.h"
+#include "StringConvert.h"
+#include "Tokenize.h"
 #include "World.h"
 
 #include "MultiClass.h"
@@ -922,6 +924,53 @@ void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 player
     PerformTokenIssuesForPlayerClass(player, playerClass);
 }
 
+map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerClass(Player* player, uint8 classID)
+{
+    // Start with a list of blank inventory display slots
+    map<uint8, PlayerEquipedItemData> visibleItems;
+    for (uint8 i = 0; i < 18; ++i)
+    {
+        PlayerEquipedItemData curItem;
+        curItem.ItemID = 0;
+        curItem.PermEnchant = 0;
+        curItem.Slot = i;
+        curItem.TempEnchant = 0;
+        visibleItems.insert(pair<uint8, PlayerEquipedItemData>(i, curItem));
+    }
+
+    // If current class, grab those items
+    if (player->getClass() == classID)
+    {
+        LOG_ERROR("module", "multiclass: Getting visible item list for current player is unimplemented");
+    }
+    // Otherwise, retrieve from the database
+    else
+    {
+        QueryResult queryResult = CharacterDatabase.Query("SELECT CI.`slot`, II.`itemEntry`, II.`enchantments` FROM `mod_multi_class_character_inventory` CI INNER JOIN `item_instance` II on II.guid = CI.item WHERE CI.`bag` = 0 AND CI.`slot` <= 18 AND CI.`guid` = {} AND `class` = {}", player->GetGUID().GetCounter(), classID);
+        if (queryResult && queryResult->GetRowCount() > 0)
+        {
+            do
+            {
+                Field* fields = queryResult->Fetch();
+                uint8 slot = fields[0].Get<uint8>();
+                uint32 itemID = fields[1].Get<uint32>();
+                string enchantString = fields[2].Get<string>();
+
+                // Break out enchant values
+                std::vector<std::string_view> tokens = Acore::Tokenize(enchantString, ' ', false);
+                uint32 permEnchant = *Acore::StringTo<uint32>(tokens[PERM_ENCHANTMENT_SLOT * MAX_ENCHANTMENT_OFFSET]);
+                uint32 tempEnchant = *Acore::StringTo<uint32>(tokens[TEMP_ENCHANTMENT_SLOT * MAX_ENCHANTMENT_OFFSET]);
+
+                // Store
+                visibleItems[slot].Slot = slot;
+                visibleItems[slot].ItemID = itemID;
+                visibleItems[slot].PermEnchant = permEnchant;
+                visibleItems[slot].TempEnchant = tempEnchant;
+            } while (queryResult->NextRow());
+        }
+    }
+    return visibleItems;
+}
 
 // Returns any class levels for classes that the player is not
 map<uint8, uint8> MultiClassMod::GetClassLevelsByClassForPlayer(Player* player)
@@ -1052,6 +1101,28 @@ public:
 
         MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+    }
+
+    void OnPreLogout(Player* player)
+    {
+        // If a class change is in progress, update the item visuals
+        // TODO: Transmog awareness
+        PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
+        if (controllerData.NextClass != player->getClass())
+        {
+            map<uint8, PlayerEquipedItemData> visibleItemsBySlot = MultiClass->GetVisibleItemsBySlotForPlayerClass(player, controllerData.NextClass);
+            for (uint8 i = 0; i < 18; ++i)
+            {
+                if (visibleItemsBySlot[i].ItemID == 0)
+                    player->SetVisibleItemSlot(i, NULL);
+                else
+                {
+                    player->SetUInt32Value(PLAYER_VISIBLE_ITEM_1_ENTRYID + (i * 2), visibleItemsBySlot[i].ItemID);
+                    player->SetUInt16Value(PLAYER_VISIBLE_ITEM_1_ENCHANTMENT + (i * 2), 0, visibleItemsBySlot[i].PermEnchant);
+                    player->SetUInt16Value(PLAYER_VISIBLE_ITEM_1_ENCHANTMENT + (i * 2), 1, visibleItemsBySlot[i].TempEnchant);
+                }
+            }
+        }
     }
 
     void OnLogout(Player* player)
