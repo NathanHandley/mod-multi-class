@@ -69,6 +69,15 @@ struct PlayerControllerData
     uint8 ActiveClassQuests;
 };
 
+struct PlayerEquipedItemData
+{
+    uint8 Slot;
+    uint32 ItemID;
+    uint32 TempEnchant;
+    uint32 PermEnchant;
+    uint32 ItemInstanceGUID;
+};
+
 class MultiClassMod
 {
 private:
@@ -122,6 +131,7 @@ public:
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
     void ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass);
 
+    std::map<uint8, PlayerEquipedItemData> GetVisibleItemsBySlotForPlayerClass(Player* player, uint8 classID);
     std::map<uint8, uint8> GetClassLevelsByClassForPlayer(Player* player);
     std::map<std::string, PlayerClassInfoItem> GetPlayerClassInfoByClassNameForPlayer(Player* player);
     bool IsSpellAMasterSkill(uint32 spellID);

@@ -25,6 +25,8 @@
 #include "Opcodes.h"
 #include "Player.h"
 #include "ScriptMgr.h"
+#include "StringConvert.h"
+#include "Tokenize.h"
 #include "World.h"
 
 #include "MultiClass.h"
@@ -42,6 +44,7 @@ static bool ConfigEnableMasterSkills = true;            // If true, the player c
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
 static uint8 ConfigLevelsPerToken = 10;                 // How many levels per token issued
 static list<uint8> ConfigBonusTokenLevels({81, 82, 83});// Levels where an extra token is awarded
+static bool ConfigUsingTransmogMod = true;              // If true, factor for the transmog fakeEntry table records
 
 MultiClassMod::MultiClassMod()
 {
@@ -842,32 +845,28 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 
 void MultiClassMod::PerformKnownSpellUpdateFromMasterSkills(Player* player)
 {
-    // Handle cross class spells
-    if (ConfigEnableMasterSkills)
+    list<int32> spellsToUnlearn;
+    list<int32> spellsToLearn;
+    GetSpellLearnAndUnlearnsForPlayer(player, spellsToUnlearn, spellsToLearn);
+
+    // Perform unlearns
+    for (auto& spellToUnlearn : spellsToUnlearn)
     {
-        list<int32> spellsToUnlearn;
-        list<int32> spellsToLearn;
-        GetSpellLearnAndUnlearnsForPlayer(player, spellsToUnlearn, spellsToLearn);
+        if (player->HasSpell(spellToUnlearn))
+            player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
+    }
 
-        // Perform unlearns
-        for (auto& spellToUnlearn : spellsToUnlearn)
+    // Perform learns, but only temporary ones if it's a gather profession buff spell
+    set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
+    for (auto& spellToLearn : spellsToLearn)
+    {
+        if (!player->HasSpell(spellToLearn))
         {
-            if (player->HasSpell(spellToUnlearn))
-                player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
-        }
-
-        // Perform learns, but only temporary ones if it's a gather profession buff spell
-        set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
-        for (auto& spellToLearn : spellsToLearn)
-        {
-            if (!player->HasSpell(spellToLearn))
-            {
-                if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
-                    player->learnSpell(spellToLearn, true);
-                else
-                    player->learnSpell(spellToLearn);
+            if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
+                player->learnSpell(spellToLearn, true);
+            else
+                player->learnSpell(spellToLearn);
                 
-            }
         }
     }
 }
@@ -922,6 +921,79 @@ void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 player
     PerformTokenIssuesForPlayerClass(player, playerClass);
 }
 
+map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerClass(Player* player, uint8 classID)
+{
+    // Start with a list of blank inventory display slots
+    map<uint8, PlayerEquipedItemData> visibleItems;
+    for (uint8 i = 0; i < 18; ++i)
+    {
+        PlayerEquipedItemData curItem;
+        curItem.ItemID = 0;
+        curItem.PermEnchant = 0;
+        curItem.Slot = i;
+        curItem.TempEnchant = 0;
+        curItem.ItemInstanceGUID = 0;
+        visibleItems.insert(pair<uint8, PlayerEquipedItemData>(i, curItem));
+    }
+
+    // If current class, grab those items
+    if (player->getClass() == classID)
+    {
+        LOG_ERROR("module", "multiclass: Getting visible item list for current player is unimplemented");
+    }
+    // Otherwise, retrieve from the database
+    else
+    {
+        QueryResult queryResult = CharacterDatabase.Query("SELECT CI.`slot`, II.`itemEntry`, II.`enchantments`, II.`guid` FROM `mod_multi_class_character_inventory` CI INNER JOIN `item_instance` II on II.guid = CI.item WHERE CI.`bag` = 0 AND CI.`slot` <= 18 AND CI.`guid` = {} AND `class` = {}", player->GetGUID().GetCounter(), classID);
+        if (queryResult && queryResult->GetRowCount() > 0)
+        {
+            do
+            {
+                Field* fields = queryResult->Fetch();
+                uint8 slot = fields[0].Get<uint8>();
+                uint32 itemID = fields[1].Get<uint32>();
+                string enchantString = fields[2].Get<string>();
+                uint32 itemInstanceGUID = fields[3].Get<uint32>();
+
+                // Break out enchant values
+                std::vector<std::string_view> tokens = Acore::Tokenize(enchantString, ' ', false);
+                uint32 permEnchant = *Acore::StringTo<uint32>(tokens[PERM_ENCHANTMENT_SLOT * MAX_ENCHANTMENT_OFFSET]);
+                uint32 tempEnchant = *Acore::StringTo<uint32>(tokens[TEMP_ENCHANTMENT_SLOT * MAX_ENCHANTMENT_OFFSET]);
+
+                // Store
+                visibleItems[slot].Slot = slot;
+                visibleItems[slot].ItemID = itemID;
+                visibleItems[slot].PermEnchant = permEnchant;
+                visibleItems[slot].TempEnchant = tempEnchant;
+                visibleItems[slot].ItemInstanceGUID = itemInstanceGUID;
+            } while (queryResult->NextRow());
+        }
+    }
+
+    // If we're using the transmog mod, factor for that by pulling those visuals too
+    if (ConfigUsingTransmogMod)
+    {
+        QueryResult queryResult = CharacterDatabase.Query("SELECT `GUID`, `FakeEntry` FROM custom_transmogrification WHERE `Owner` = {}", player->GetGUID().GetCounter());
+        if (queryResult && queryResult->GetRowCount() > 0)
+        {
+            do
+            {
+                Field* fields = queryResult->Fetch();
+                uint32 itemInstanceGUID = fields[0].Get<uint32>();
+                uint32 fakeItemID = fields[1].Get<uint32>();
+
+                // Replace any matches
+                for (auto& visibleItem : visibleItems)
+                {
+                    if (visibleItem.second.ItemInstanceGUID == itemInstanceGUID)
+                        visibleItem.second.ItemID = fakeItemID;
+                }
+            } while (queryResult->NextRow());
+        }
+    }
+
+    return visibleItems;
+}
 
 // Returns any class levels for classes that the player is not
 map<uint8, uint8> MultiClassMod::GetClassLevelsByClassForPlayer(Player* player)
@@ -1050,8 +1122,33 @@ public:
             ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
         }	    
 
-        MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-        MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        if (ConfigEnableMasterSkills)
+        {
+            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
+            MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        }
+    }
+
+    void OnPreLogout(Player* player)
+    {
+        // If a class change is in progress, update the item visuals
+        // TODO: Transmog awareness
+        PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
+        if (controllerData.NextClass != player->getClass())
+        {
+            map<uint8, PlayerEquipedItemData> visibleItemsBySlot = MultiClass->GetVisibleItemsBySlotForPlayerClass(player, controllerData.NextClass);
+            for (uint8 i = 0; i < 18; ++i)
+            {
+                if (visibleItemsBySlot[i].ItemID == 0)
+                    player->SetVisibleItemSlot(i, NULL);
+                else
+                {
+                    player->SetUInt32Value(PLAYER_VISIBLE_ITEM_1_ENTRYID + (i * 2), visibleItemsBySlot[i].ItemID);
+                    player->SetUInt16Value(PLAYER_VISIBLE_ITEM_1_ENCHANTMENT + (i * 2), 0, visibleItemsBySlot[i].PermEnchant);
+                    player->SetUInt16Value(PLAYER_VISIBLE_ITEM_1_ENCHANTMENT + (i * 2), 1, visibleItemsBySlot[i].TempEnchant);
+                }
+            }
+        }
     }
 
     void OnLogout(Player* player)
@@ -1103,8 +1200,11 @@ public:
     {
         if (ConfigEnabled == false)
             return;
-        MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-        MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        if (ConfigEnableMasterSkills)
+        {
+            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
+            MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        }
     }
 
     void OnLearnSpell(Player* player, uint32 spellID)
@@ -1113,7 +1213,7 @@ public:
             return;
 
         // Only take action if a master skill was learned
-        if (MultiClass->IsSpellAMasterSkill(spellID))
+        if (ConfigEnableMasterSkills && MultiClass->IsSpellAMasterSkill(spellID))
         {
             MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         }
@@ -1125,7 +1225,7 @@ public:
             return;
 
         // Only take action if a master skill was forgotten
-        if (MultiClass->IsSpellAMasterSkill(spellID))
+        if (ConfigEnableMasterSkills && MultiClass->IsSpellAMasterSkill(spellID))
         {
             MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
         }
@@ -1290,7 +1390,7 @@ public:
         if (!*args)
         {
             handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
-            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off'");
             handler->PSendSysMessage("Requires logging out to take effect");
             return true;
         }
@@ -1327,7 +1427,7 @@ public:
         else
         {
             handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
-            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off' will make this class have its own quest log.");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off'");
             handler->PSendSysMessage("Valid Values: on, off.");
             std::string enteredValueLine = "Entered Value was ";
             enteredValueLine.append(enteredValue);
@@ -1340,6 +1440,11 @@ public:
     {
         if (ConfigEnabled == false)
             return true;
+        if (!ConfigEnableMasterSkills)
+        {
+            handler->PSendSysMessage("MasterSkills are not enabled");
+            return true;
+        }
 
         if (!*args)
         {
