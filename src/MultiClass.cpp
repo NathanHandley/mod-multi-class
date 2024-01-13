@@ -18,7 +18,6 @@
 */
 
 // TODO: Restrict DK unless level 55 (sConfigMgr->GetOption<int32>("CharacterCreating.MinLevelForHeroicCharacter", 55);)
-// TODO: Show only available race/class combos
 
 #include "Chat.h"
 #include "Configuration/Config.h"
@@ -37,14 +36,15 @@
 using namespace Acore::ChatCommands;
 using namespace std;
 
-static bool ConfigEnabled = true;
-static bool ConfigDisplayInstructionMessage = true;
-static uint32 ConfigMaxSkillIDCheck = 1000;             // The highest level of skill ID it will look for when doing copies
-static bool ConfigEnableMasterSkills = true;            // If true, the player can learn spells from other classes
+static bool ConfigEnabled;
+static bool ConfigDisplayInstructionMessage;
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
-static uint8 ConfigLevelsPerToken = 10;                 // How many levels per token issued
-static list<uint8> ConfigBonusTokenLevels({81, 82, 83});// Levels where an extra token is awarded
-static bool ConfigUsingTransmogMod = true;              // If true, factor for the transmog fakeEntry table records
+static bool ConfigUsingTransmogMod;                     // If true, factor for the transmog fakeEntry table records
+static bool ConfigEnableMasterSkills;                   // If true, the player can learn spells from other classes
+static uint8 ConfigLevelsPerToken;                      // How many levels per token issued
+static set<uint32> ConfigBonusTokenLevels;              // Levels where an extra token is awarded
+
+static uint32 ConfigMaxSkillIDCheck = 1000;             // The highest level of skill ID it will look for when doing copies
 
 MultiClassMod::MultiClassMod()
 {
@@ -466,6 +466,10 @@ void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32
 
 uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player, uint8 classID)
 {
+    // If disabled, skip
+    if (ConfigLevelsPerToken == 0)
+        return 0;
+
     // Ignore if death knight
     if (player->getClass() == CLASS_DEATH_KNIGHT)
         return 0;
@@ -1242,14 +1246,29 @@ public:
         // Enabled Flag
         ConfigEnabled = sConfigMgr->GetOption<bool>("MultiClass.Enable", true);
 
+        // Instruction Message
+        ConfigDisplayInstructionMessage = sConfigMgr->GetOption<bool>("MultiClass.MultiClass.DisplayInstructionMessage", true);
+
+        // Cross Class Skills
+        ConfigCrossClassIncludeSkillIDs = GetSetFromConfigString("MultiClass.CrossClassIncludeSkillIDs");
+
+        // Using Transmog
+        ConfigUsingTransmogMod = sConfigMgr->GetOption<bool>("MultiClass.UsingTransmog", true);
+
+        // Master Skills - Enabled
+        ConfigEnableMasterSkills = sConfigMgr->GetOption<bool>("MultiClass.MasterSkills.Enable", true);
+
+        // Master Skills - Level Per Token
+        ConfigLevelsPerToken = sConfigMgr->GetOption<uint8>("MultiClass.MasterSkills.LevelsPerToken", 10);
+
+        // Master Skills - Bonus Token Levels
+        ConfigBonusTokenLevels = GetSetFromConfigString("MultiClass.MasterSkills.BonusTokenLevels");
+
         // Class Ability Data
         if (!MultiClass->LoadClassAbilityData())
         {
             LOG_ERROR("module", "multiclass: Could not load the class ability data after the config load");
         }
-
-        // Cross Class Skills
-        ConfigCrossClassIncludeSkillIDs = GetSetFromConfigString("MultiClass.CrossClassIncludeSkillIDs");
     }
 
     set<uint32> GetSetFromConfigString(string configStringName)
