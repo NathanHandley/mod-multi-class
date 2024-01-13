@@ -13,6 +13,7 @@ Features:
 
 ## Installation
 You must have a core version updated to at least changeset [4321b8a](https://github.com/azerothcore/azerothcore-wotlk/commit/4321b8a4dee98fce5f7b66dae43afa44b5c22a12)
+
 Install the same as any other standard installation.  See https://www.azerothcore.org/wiki/installation
 
 ## Credits
