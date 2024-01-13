@@ -35,7 +35,7 @@ MultiClass.CrossClassIncludeSkillIDs = 129, 164, 165, 171, 182, 185, 186, 197, 2
 #        Values:      1  - (Enabled)
 #                     0  - (Disabled, default)
 #
-MultiClass.UsingTransmog = 0
+MultiClass.UsingTransmog = 1
 
 ###################################################################################################
 # MASTER SKILLS
@@ -54,7 +54,7 @@ MultiClass.UsingTransmog = 0
 #        Values:      1  - (Enabled, default)
 #                     0  - (Disabled)
 
-MultiClass.MasterSkills.Enable = 0
+MultiClass.MasterSkills.Enable = 1
 
 #    MultiClass.MasterSkills.LevelsPerToken
 #        Description: A new token is generated every time this many levels are learned
