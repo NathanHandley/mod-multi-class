@@ -770,7 +770,7 @@ public:
         }	    
     }
 
-    void OnPreLogout(Player* player)
+    void OnBeforeLogout(Player* player)
     {
         // If a class change is in progress, update the item visuals
         PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
