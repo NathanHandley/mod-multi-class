@@ -23,9 +23,9 @@ MultiClass.MultiClass.DisplayInstructionMessage = 1
 #
 #    MultiClass.CrossClassIncludeSkillIDs
 #        Description: Comma delimited list of skill IDs that remain when you switch classes
-#                     Default list is related to professions, flying, pick lock
+#                     Default list is related to professions and riding skills
 #
-MultiClass.CrossClassIncludeSkillIDs = 129, 164, 165, 171, 182, 185, 186, 197, 202, 333, 356, 393, 633, 755, 762, 773
+MultiClass.CrossClassIncludeSkillIDs = 129, 164, 165, 171, 182, 185, 186, 197, 202, 333, 356, 393, 755, 762, 773
 
 #
 #    MultiClass.UsingTransmog
@@ -36,37 +36,5 @@ MultiClass.CrossClassIncludeSkillIDs = 129, 164, 165, 171, 182, 185, 186, 197, 2
 #                     0  - (Disabled, default)
 #
 MultiClass.UsingTransmog = 0
-
-###################################################################################################
-# MASTER SKILLS
-###################################################################################################
-# IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# Master skills are a type of skill that a class can learn which gives these abilities to all other
-# classes on that character.  Unless the list is tailored specifically so, this feature will
-# require the server to allow class abilities to work on different classes.  For most servers, this
-# will not be a feature that can be enabled.  So enable with caution.  This feature was built
-# specifically for the Eternal Wrath server, and it will take time to make all of this feature
-# available to other servers.
-# IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-#    MultiClass.MasterSkills.Enable
-#        Description: If marked as enabled, master skills can be bought and used by class trainers
-#        Values:      1  - (Enabled, default)
-#                     0  - (Disabled)
-
-MultiClass.MasterSkills.Enable = 0
-
-#    MultiClass.MasterSkills.LevelsPerToken
-#        Description: A new token is generated every time this many levels are learned
-#        Values:      10  - (New token every level multiple of 10, default)
-#					  0 Will disable this feature
-
-MultiClass.MasterSkills.LevelsPerToken = 10
-
-#    MultiClass.MasterSkills.BonusTokenLevels
-#        Description: Comma delimited list of levels that give an extra token, on top of above
-#        Values:      Any combination of levels.  Default = 81, 82, 83
-
-MultiClass.MasterSkills.BonusTokenLevels = 81, 82, 83
 
 ###################################################################################################

@@ -40,9 +40,6 @@ static bool ConfigEnabled;
 static bool ConfigDisplayInstructionMessage;
 static set<uint32> ConfigCrossClassIncludeSkillIDs;
 static bool ConfigUsingTransmogMod;                     // If true, factor for the transmog fakeEntry table records
-static bool ConfigEnableMasterSkills;                   // If true, the player can learn spells from other classes
-static uint8 ConfigLevelsPerToken;                      // How many levels per token issued
-static set<uint32> ConfigBonusTokenLevels;              // Levels where an extra token is awarded
 
 static uint32 ConfigMaxSkillIDCheck = 1000;             // The highest level of skill ID it will look for when doing copies
 
@@ -71,37 +68,6 @@ bool MultiClassMod::IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace)
         return false;
     else
         return true;
-}
-
-// Returns a list of MasterSkills that the player knows
-list<MasterSkill> MultiClassMod::GetKnownMasterSkillsForPlayer(Player* player)
-{
-    list<MasterSkill> knownMasterSkills;
-    for (auto& curSpell : player->GetSpellMap())
-    {
-        if (curSpell.second->State == PLAYERSPELL_REMOVED)
-            continue;
-        if (MasterSkillsBySpellID.find(curSpell.first) != MasterSkillsBySpellID.end())
-            knownMasterSkills.push_back(MasterSkillsBySpellID[curSpell.first]);
-    }
-    return knownMasterSkills;
-}
-
-list<MasterSkill> MultiClassMod::GetKnownMasterSkillsForPlayerForClass(Player* player, uint8 classID)
-{
-    list<MasterSkill> knownMasterSkills;
-    for (auto& curSpell : player->GetSpellMap())
-    {
-        if (curSpell.second->State == PLAYERSPELL_REMOVED)
-            continue;
-
-        if (MasterSkillsBySpellID.find(curSpell.first) != MasterSkillsBySpellID.end())
-        {
-            if (MasterSkillsBySpellID[curSpell.first].ClassID == classID)
-                knownMasterSkills.push_back(MasterSkillsBySpellID[curSpell.first]);
-        }
-    }
-    return knownMasterSkills;
 }
 
 void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction)
@@ -364,219 +330,6 @@ void MultiClassMod::CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint
     }
 }
 
-// Modifies a list of spell learn and unlearns for the passed gathering skills
-void MultiClassMod::AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* player, uint16 skillID, array<uint32, 6> skillSpellIDs, list<int32>& inOutSpellUnlearns, list<int32>& inOutSpellLearns)
-{
-    // Get level
-    uint8 playerLevel = player->GetLevel();
-
-    uint32 properSpellID = 0;
-    if (player->HasSkill(skillID))
-    {
-        uint16 skillValue = player->GetSkillValue(skillID);
-        if (skillValue >= 450 && playerLevel >= 55)
-            properSpellID = skillSpellIDs[0];
-        else if (skillValue >= 375 && playerLevel >= 40)
-            properSpellID = skillSpellIDs[1];
-        else if (skillValue >= 300 && playerLevel >= 25)
-            properSpellID = skillSpellIDs[2];
-        else if (skillValue >= 225 && playerLevel >= 10)
-            properSpellID = skillSpellIDs[3];
-        else if (skillValue >= 150)
-            properSpellID = skillSpellIDs[4];
-        else if (skillValue >= 75)
-            properSpellID = skillSpellIDs[5];
-
-        for (uint32 skillSpellID : skillSpellIDs)
-        {
-            if (properSpellID == skillSpellID)
-                inOutSpellLearns.push_back(skillSpellID);
-            else if (!player->HasSpell(skillSpellID))
-                continue;
-            else if (properSpellID == 0 || properSpellID != skillSpellID)
-                inOutSpellUnlearns.push_back(skillSpellID);
-        }
-    }
-}
-
-// Returns a list of what spells should be learned and unlearned for a class
-void MultiClassMod::GetSpellLearnAndUnlearnsForPlayer(Player* player, list<int32>& outSpellUnlearns, list<int32>& outSpellLearns)
-{
-    // Clear out parameters
-    outSpellUnlearns.clear();
-    outSpellLearns.clear();
-
-    // Get the known Master Skills
-    list<MasterSkill> knownMasterSkills = GetKnownMasterSkillsForPlayer(player);
-
-    // Get level
-    uint8 playerLevel = player->GetLevel();
-
-    // Go through the master skills and see what the player should know from them now
-    set<uint32> shouldKnowSpellIDsFromMasterSkills;
-    for (auto& curMasterSkill : knownMasterSkills)
-    {
-        for (auto& curMasterSkillSpell : curMasterSkill.Spells)
-        {
-            // Skip out of level spells
-            if (curMasterSkillSpell.ReqLevel > player->GetLevel())
-                continue;
-
-            // This is a spell the player should know
-            shouldKnowSpellIDsFromMasterSkills.insert(curMasterSkillSpell.SpellID);
-
-            // If the player doesn't know it, mark it to learn
-            if (player->HasSpell(curMasterSkillSpell.SpellID) == false)
-                outSpellLearns.push_back(curMasterSkillSpell.SpellID);
-        }
-    }
-
-    // If player has a gathering skill, determine what rank they should have and set mark accordingly
-    
-    // Herbalism - Lifeblood
-    //AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 182, { 55503, 55502, 55501, 55500, 55480, 55428 }, outSpellUnlearns, outSpellLearns);
-
-    // Mining - Toughness
-    AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 186, { 53040, 53124, 53123, 53122, 53121, 53120 }, outSpellUnlearns, outSpellLearns);
-    
-    // Skinning - Master of Anatomy
-    AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(player, 393, { 53666, 53665, 53664, 53663, 53662, 53125 }, outSpellUnlearns, outSpellLearns);
-
-    // Go through what class spells the player does know, and mark removal for any that don't belong to the player's class, aren't in the master skill list, or are invalid profession spells
-    for (auto& curSpell : player->GetSpellMap())
-    {
-        // Skip already deleted spells
-        if (curSpell.second->State == PLAYERSPELL_REMOVED)
-            continue;
-
-        // Skip non class spells
-        if (ClassSpellIDs.find(curSpell.first) == ClassSpellIDs.end())
-            continue;
-
-        // Skip these class spells
-        // TODO: Talent awareness?
-        if (ClassSpellsByClassAndSpellID[player->getClass()].find(curSpell.first) != ClassSpellsByClassAndSpellID[player->getClass()].end())
-            continue;
-
-        // Mark removal if the player knows a class spell, but it's not in the master list pulled earlier
-        if (shouldKnowSpellIDsFromMasterSkills.find(curSpell.first) == shouldKnowSpellIDsFromMasterSkills.end())
-            outSpellUnlearns.push_back(curSpell.first);        
-    }
-}
-
-uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player, uint8 classID)
-{
-    // If disabled, skip
-    if (ConfigLevelsPerToken == 0)
-        return 0;
-
-    // Ignore if death knight
-    if (player->getClass() == CLASS_DEATH_KNIGHT)
-        return 0;
-
-    // Get this class level
-    uint8 playersIssueClassLevel = player->GetLevel();
-    if (player->getClass() == classID)
-        playersIssueClassLevel = player->GetLevel();
-    else
-    {
-        map<uint8, uint8> levelsByClassForPlayer = GetClassLevelsByClassForPlayer(player);
-        if (levelsByClassForPlayer.find(classID) != levelsByClassForPlayer.end())
-            playersIssueClassLevel = levelsByClassForPlayer[classID];
-    }
-
-    // get the tokens issued for the class
-    uint8 tokensIssued = 0;
-    QueryResult tokenQueryResult = CharacterDatabase.Query("SELECT `tokensIssued` FROM mod_multi_class_character_tokens WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
-    if (tokenQueryResult && tokenQueryResult->GetRowCount() > 0)
-    {
-        Field* fields = tokenQueryResult->Fetch();
-        tokensIssued = fields[0].Get<uint8>();
-    }
-    else
-    {
-        // No record found, so make a blank one
-        CharacterDatabase.DirectExecute("INSERT IGNORE INTO mod_multi_class_character_tokens (guid, class, tokensIssued) VALUES ({}, {}, 0)",
-            player->GetGUID().GetCounter(),
-            classID);
-    }
-
-    // Calculate the number of tokens to issue
-    uint8 tokensToIssueTotal = playersIssueClassLevel / ConfigLevelsPerToken;
-    for (auto& bonusLevel : ConfigBonusTokenLevels)
-    {
-        if (playersIssueClassLevel >= bonusLevel)
-            tokensToIssueTotal++;
-    }
-    if (tokensToIssueTotal > tokensIssued)
-        return tokensToIssueTotal - tokensIssued;
-    else
-        return 0;
-}
-
-bool MultiClassMod::RefundTokenCountForPlayerClass(Player* player, uint8 classID, uint8 tokenCountToRefund)
-{
-    // Ignore if death knight
-    if (player->getClass() == CLASS_DEATH_KNIGHT)
-        return true;
-
-    // Do nothing if nothing is refunded
-    if (tokenCountToRefund == 0)
-        return true;
-
-    // Get the tokens issued so far
-    uint8 tokensIssued = 0;
-    QueryResult tokenQueryResult = CharacterDatabase.Query("SELECT `tokensIssued` FROM mod_multi_class_character_tokens WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
-    if (tokenQueryResult && tokenQueryResult->GetRowCount() > 0)
-    {
-        Field* fields = tokenQueryResult->Fetch();
-        tokensIssued = fields[0].Get<uint8>();
-    }
-    else
-    {
-        // No record found, so make a blank one
-        CharacterDatabase.DirectExecute("INSERT IGNORE INTO mod_multi_class_character_tokens (guid, class, tokensIssued) VALUES ({}, {}, 0)",
-            player->GetGUID().GetCounter(),
-            player->getClass());
-    }
-
-    // Refund the tokens
-    if (tokenCountToRefund > tokensIssued)
-    {
-        LOG_ERROR("module", "multiclass: Error refunding tokens for player guid {}, Class {} had {} tokens issued, but requested to refund {}", player->GetGUID().GetCounter(), classID, tokensIssued, tokenCountToRefund);
-        return false;
-    }
-    uint8 newTokenCount = tokensIssued - tokenCountToRefund;
-    CharacterDatabase.DirectExecute("UPDATE mod_multi_class_character_tokens SET tokensIssued = {} WHERE guid = {} AND class = {}", newTokenCount, player->GetGUID().GetCounter(), classID);
-    return true;
-}
-
-void MultiClassMod::UpdateTokenIssueCountForPlayerClass(Player* player, uint8 tokenCount, uint8 classID)
-{
-    // Ignore if death knight
-    if (classID == CLASS_DEATH_KNIGHT)
-        return;
-
-    QueryResult tokenQueryResult = CharacterDatabase.Query("SELECT `tokensIssued` FROM mod_multi_class_character_tokens WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
-    if (!tokenQueryResult || tokenQueryResult->GetRowCount() == 0)
-    {
-        CharacterDatabase.DirectExecute("INSERT IGNORE INTO mod_multi_class_character_tokens (guid, class, tokensIssued) VALUES ({}, {}, {})",
-            player->GetGUID().GetCounter(),
-            classID,
-            tokenCount);
-    }
-    else
-    {
-        // Add to the existing and save that
-        Field* fields = tokenQueryResult->Fetch();
-        uint8 tokensIssuedAlready = fields[0].Get<uint8>();
-        CharacterDatabase.DirectExecute("UPDATE mod_multi_class_character_tokens SET tokensIssued = {} WHERE guid = {} AND class = {}",
-            tokenCount + tokensIssuedAlready,
-            player->GetGUID().GetCounter(),
-            classID);
-    }
-}
-
 // (Re)populates the ability data for the classes
 bool MultiClassMod::LoadClassAbilityData()
 {
@@ -644,46 +397,6 @@ bool MultiClassMod::LoadClassAbilityData()
         }
     } while (spellQueryResult->NextRow());
 
-    // Pull in the master skills
-    MasterSkillsBySpellID.clear();
-    QueryResult masterQueryResult = WorldDatabase.Query("SELECT MasterSkillID, LearnSpellClassID, LearnSpellID FROM mod_multi_class_master_skill_spells ORDER BY MasterSkillID");
-    if (!masterQueryResult)
-    {
-        LOG_ERROR("module", "multiclass: Error pulling master skill data from the database.  Does the 'mod_multi_class_master_skill_spells' table exist in the world database and is populated?");
-        return false;
-    }
-    do
-    {
-        // Pull the data out
-        Field* fields = masterQueryResult->Fetch();
-        uint32 masterSkillSpellID = fields[0].Get<uint32>();
-        uint32 learnSpellClass = fields[1].Get<uint8>();
-        uint32 learnSpellID = fields[2].Get<uint32>();
-
-        // Get the spell
-        MultiClassSpell curSpell;
-        if (ClassSpellsByClassAndSpellID.find(learnSpellClass) == ClassSpellsByClassAndSpellID.end() ||
-            ClassSpellsByClassAndSpellID[learnSpellClass].find(learnSpellID) == ClassSpellsByClassAndSpellID[learnSpellClass].end())
-        {
-            LOG_ERROR("module", "multiclass: Could not find multi class spell with id {} in class {}, so skipping add of master skill {}", learnSpellID, learnSpellClass, masterSkillSpellID);
-            continue;
-        }
-        curSpell = ClassSpellsByClassAndSpellID[learnSpellClass][learnSpellID];
-
-        // Add the spell to the a master skill, creating a new master skill if one doesn't exist
-        if (MasterSkillsBySpellID.find(masterSkillSpellID) == MasterSkillsBySpellID.end())
-        {
-            MasterSkill newMasterSkill;
-            newMasterSkill.SpellID = masterSkillSpellID;
-            newMasterSkill.ClassID = learnSpellClass;
-            newMasterSkill.Spells.push_back(curSpell);
-            MasterSkillsBySpellID.insert(pair<uint32, MasterSkill>(masterSkillSpellID, newMasterSkill));
-        }
-        else
-        {
-            MasterSkillsBySpellID[masterSkillSpellID].Spells.push_back(curSpell);
-        }
-    } while (masterQueryResult->NextRow());
     return true;
 }
 
@@ -838,91 +551,12 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_action WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_glyphs WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
-    transaction->Append("DELETE FROM mod_multi_class_character_tokens WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_controller WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_class_settings WHERE guid = {}", playerGUID);
     CharacterDatabase.CommitTransaction(transaction);
     return true;
-}
-
-void MultiClassMod::PerformKnownSpellUpdateFromMasterSkills(Player* player)
-{
-    list<int32> spellsToUnlearn;
-    list<int32> spellsToLearn;
-    GetSpellLearnAndUnlearnsForPlayer(player, spellsToUnlearn, spellsToLearn);
-
-    // Perform unlearns
-    for (auto& spellToUnlearn : spellsToUnlearn)
-    {
-        if (player->HasSpell(spellToUnlearn))
-            player->removeSpell(spellToUnlearn, SPEC_MASK_ALL, false);
-    }
-
-    // Perform learns, but only temporary ones if it's a gather profession buff spell
-    set<uint32> gatherProfSpells{ 55503, 55502, 55501, 55500, 55480, 55428, 53040, 53124, 53123, 53122, 53121, 53120, 53666, 53665, 53664, 53663, 53662, 53125 };
-    for (auto& spellToLearn : spellsToLearn)
-    {
-        if (!player->HasSpell(spellToLearn))
-        {
-            if (gatherProfSpells.find(spellToLearn) != gatherProfSpells.end())
-                player->learnSpell(spellToLearn, true);
-            else
-                player->learnSpell(spellToLearn);
-                
-        }
-    }
-}
-
-bool MultiClassMod::PerformTokenIssuesForPlayerClass(Player* player, uint8 classID)
-{
-    // Give tokens if there are any to give
-    uint8 tokenCountToIssue = GetTokenCountToIssueForPlayer(player, classID);
-    if (tokenCountToIssue > 0)
-    {
-        uint32 itemIDofToken = GetTokenItemIDForClass(classID);
-        if (itemIDofToken == 0)
-        {
-            LOG_ERROR("module", "multiclass: Unable to determine class token to use for class {} on player {}", classID, player->GetGUID().GetCounter());
-            return false;
-        }
-
-        // Issue the token
-        if (!player->AddItem(itemIDofToken, tokenCountToIssue))
-        {
-            LOG_ERROR("module", "multiclass: Unable to give item with id {} to player with GUID {}", classID, player->GetGUID().GetCounter());
-            return false;
-        }
-
-        // Update the token issue amount in the database
-        UpdateTokenIssueCountForPlayerClass(player, tokenCountToIssue, classID);
-    }
-
-    return true;
-}
-
-// Clears any class-specific master skills for the player, and returns the tokens
-void MultiClassMod::ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass)
-{
-    // Get a list of master skills to delete
-    list<MasterSkill> knownMasterSkillsForClass = GetKnownMasterSkillsForPlayerForClass(player, playerClass);
-
-    // Unlearn the master skills
-    for (auto& masterSkill : knownMasterSkillsForClass)
-    {
-        if (player->HasSpell(masterSkill.SpellID))
-            player->removeSpell(masterSkill.SpellID, SPEC_MASK_ALL, false);
-    }
-
-    // Perform learn and unlearns
-    PerformKnownSpellUpdateFromMasterSkills(player);
-
-    // Update token issue counts
-    RefundTokenCountForPlayerClass(player, playerClass, (uint8)knownMasterSkillsForClass.size());
-
-    // Issue any new tokens
-    PerformTokenIssuesForPlayerClass(player, playerClass);
 }
 
 map<uint8, PlayerEquipedItemData> MultiClassMod::GetVisibleItemsBySlotForPlayerClass(Player* player, uint8 classID)
@@ -1049,15 +683,6 @@ map<string, PlayerClassInfoItem> MultiClassMod::GetPlayerClassInfoByClassNameFor
     return playerClassInfoByClass;
 }
 
-// Returns true if the passed spellID is a master skill
-bool MultiClassMod::IsSpellAMasterSkill(uint32 spellID)
-{
-    if (MasterSkillsBySpellID.find(spellID) == MasterSkillsBySpellID.end())
-        return false;
-    else
-        return true;
-}
-
 PlayerControllerData MultiClassMod::GetPlayerControllerData(Player* player)
 {
     PlayerControllerData controllerData;
@@ -1125,12 +750,6 @@ public:
         {
             ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
         }	    
-
-        if (ConfigEnableMasterSkills)
-        {
-            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-            MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
-        }
     }
 
     void OnPreLogout(Player* player)
@@ -1199,41 +818,6 @@ public:
             return;
         MultiClass->PerformPlayerDelete(guid);        
     }
-
-    void OnLevelChanged(Player* player, uint8 /*oldLevel*/)
-    {
-        if (ConfigEnabled == false)
-            return;
-        if (ConfigEnableMasterSkills)
-        {
-            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-            MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
-        }
-    }
-
-    void OnLearnSpell(Player* player, uint32 spellID)
-    {
-        if (ConfigEnabled == false)
-            return;
-
-        // Only take action if a master skill was learned
-        if (ConfigEnableMasterSkills && MultiClass->IsSpellAMasterSkill(spellID))
-        {
-            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-        }
-    }
-
-    void OnForgotSpell(Player* player, uint32 spellID)
-    {
-        if (ConfigEnabled == false)
-            return;
-
-        // Only take action if a master skill was forgotten
-        if (ConfigEnableMasterSkills && MultiClass->IsSpellAMasterSkill(spellID))
-        {
-            MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
-        }
-    }
 };
 
 class MultiClass_WorldScript: public WorldScript
@@ -1254,15 +838,6 @@ public:
 
         // Using Transmog
         ConfigUsingTransmogMod = sConfigMgr->GetOption<bool>("MultiClass.UsingTransmog", true);
-
-        // Master Skills - Enabled
-        ConfigEnableMasterSkills = sConfigMgr->GetOption<bool>("MultiClass.MasterSkills.Enable", true);
-
-        // Master Skills - Level Per Token
-        ConfigLevelsPerToken = sConfigMgr->GetOption<uint8>("MultiClass.MasterSkills.LevelsPerToken", 10);
-
-        // Master Skills - Bonus Token Levels
-        ConfigBonusTokenLevels = GetSetFromConfigString("MultiClass.MasterSkills.BonusTokenLevels");
 
         // Class Ability Data
         if (!MultiClass->LoadClassAbilityData())
@@ -1312,7 +887,6 @@ public:
             { "change",             SEC_PLAYER,     true, &HandleMultiClassChangeClass,              "Changes your class" },
             { "info",               SEC_PLAYER,     true, &HandleMultiClassInfo,              "Shows all your classes, their level, and other properties" },
             { "sharequests",        SEC_PLAYER,     true, &HandleMultiClassShareQuests,              "Toggle between sharing or not sharing quests on the current class" },
-            { "resetmasterskills",  SEC_PLAYER,     true, &HandleMultiClassMasterSkillReset,         "Resets spent master tokens for a class" },
         };
 
         static std::vector<ChatCommand> commandTable =
@@ -1454,65 +1028,6 @@ public:
             return true;
         }
     }
-
-    static bool HandleMultiClassMasterSkillReset(ChatHandler* handler, const char* args)
-    {
-        if (ConfigEnabled == false)
-            return true;
-        if (!ConfigEnableMasterSkills)
-        {
-            handler->PSendSysMessage("MasterSkills are not enabled");
-            return true;
-        }
-
-        if (!*args)
-        {
-            handler->PSendSysMessage(".class resetmasterskills 'class'");
-            handler->PSendSysMessage("Removes and learned master skills for the passed class, refunding the tokens. Example: '.class resetmasterskills warrior'");
-            handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, shaman, mage, warlock, druid");
-            return true;
-        }
-
-        uint8 classInt = CLASS_NONE;
-        std::string className = strtok((char*)args, " ");
-        if (className.starts_with("Warr") || className.starts_with("warr") || className.starts_with("WARR"))
-            classInt = CLASS_WARRIOR;
-        else if (className.starts_with("Pa") || className.starts_with("pa") || className.starts_with("PA"))
-            classInt = CLASS_PALADIN;
-        else if (className.starts_with("H") || className.starts_with("h"))
-            classInt = CLASS_HUNTER;
-        else if (className.starts_with("R") || className.starts_with("r"))
-            classInt = CLASS_ROGUE;
-        else if (className.starts_with("Pr") || className.starts_with("pr") || className.starts_with("PR"))
-            classInt = CLASS_PRIEST;
-        //else if (className.starts_with("De") || className.starts_with("de") || className.starts_with("DE"))
-        //    classInt = CLASS_DEATH_KNIGHT;
-        else if (className.starts_with("S") || className.starts_with("s"))
-            classInt = CLASS_SHAMAN;
-        else if (className.starts_with("M") || className.starts_with("m"))
-            classInt = CLASS_MAGE;
-        else if (className.starts_with("Warl") || className.starts_with("warl") || className.starts_with("WARL"))
-            classInt = CLASS_WARLOCK;
-        else if (className.starts_with("Dr") || className.starts_with("dr") || className.starts_with("DR"))
-            classInt = CLASS_DRUID;
-        else
-        {
-            handler->PSendSysMessage(".class resetmasterskills 'class'");
-            handler->PSendSysMessage("Removes and learned master skills for the passed class, refunding the tokens. Example: '.class resetmasterskills warrior'");
-            handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, shaman, mage, warlock, druid");
-            std::string enteredValueLine = "Entered Value was ";
-            enteredValueLine.append(className);
-            handler->PSendSysMessage(enteredValueLine.c_str());
-            return true;
-        }
-
-        Player* player = handler->GetPlayer();
-        MultiClass->ResetMasterSkillsForPlayerClass(player, classInt);
-        player->SaveToDB(false, false);
-
-        // Class change accepted
-        return true;
-    }
 };
 
 std::string GetClassStringFromID(uint8 classID)
@@ -1530,24 +1045,6 @@ std::string GetClassStringFromID(uint8 classID)
     case CLASS_WARLOCK:     return "Warlock";
     case CLASS_DRUID:       return "Druid";
     default:                return "Unknown";
-    }
-}
-
-uint32 GetTokenItemIDForClass(uint8 classID)
-{
-    switch (classID)
-    {
-    case CLASS_WARRIOR:     return 81207;
-    case CLASS_PALADIN:     return 81203;
-    case CLASS_HUNTER:      return 81201;
-    case CLASS_ROGUE:       return 81205;
-    case CLASS_PRIEST:      return 81208;
-    case CLASS_DEATH_KNIGHT:return 81204;
-    case CLASS_SHAMAN:      return 81206;
-    case CLASS_MAGE:        return 81202;
-    case CLASS_WARLOCK:     return 81210;
-    case CLASS_DRUID:       return 81209;
-    default:                return 0;
     }
 }
 

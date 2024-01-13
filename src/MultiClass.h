@@ -39,14 +39,6 @@ public:
     bool IsLearnedByTalent;
 };
 
-class MasterSkill
-{
-public:
-    uint32 SpellID;
-    uint8 ClassID;
-    std::list<MultiClassSpell> Spells;
-};
-
 struct PlayerClassInfoItem
 {
     uint8 ClassID;
@@ -85,12 +77,9 @@ private:
 
     std::map<uint32, std::map<uint32, MultiClassSpell>> ClassSpellsByClassAndSpellID;
     std::set<uint32> ClassSpellIDs;
-    std::map<uint32, MasterSkill> MasterSkillsBySpellID;
 
     bool DoesSavedClassDataExistForPlayer(Player* player, uint8 lookupClass);
     bool IsValidRaceClassCombo(uint8 lookupClass, uint8 lookupRace);
-    std::list<MasterSkill> GetKnownMasterSkillsForPlayer(Player* player);
-    std::list<MasterSkill> GetKnownMasterSkillsForPlayerForClass(Player* player, uint8 classID);
 
     void CopyCharacterDataIntoModCharacterTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveTalentsToModTalentsTable(Player* player, CharacterDatabaseTransaction& transaction);
@@ -105,12 +94,6 @@ private:
     void CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModSkillTableIntoCharacterSkills(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
-
-    void AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* player, uint16 skillID, std::array<uint32, 6> skillSpellIDs, std::list<int32>& inOutSpellUnlearns, std::list<int32>& inOutSpellLearns);
-    void GetSpellLearnAndUnlearnsForPlayer(Player* player, std::list<int32>& outSpellUnlearns, std::list<int32>& outSpellLearns);
-    uint8 GetTokenCountToIssueForPlayer(Player* player, uint8 classID);
-    bool RefundTokenCountForPlayerClass(Player* player, uint8 classID, uint8 tokenCountToRefund);
-    void UpdateTokenIssueCountForPlayerClass(Player* player, uint8 tokenCount, uint8 classID);
 
 public:
     static MultiClassMod* instance()
@@ -127,14 +110,10 @@ public:
     bool PerformClassSwitch(Player* player, PlayerControllerData controllerData);
     bool PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDataClass, uint8 nextQuestDataClass);
     bool PerformPlayerDelete(ObjectGuid guid);
-    void PerformKnownSpellUpdateFromMasterSkills(Player* player);
-    bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
-    void ResetMasterSkillsForPlayerClass(Player* player, uint8 playerClass);
 
     std::map<uint8, PlayerEquipedItemData> GetVisibleItemsBySlotForPlayerClass(Player* player, uint8 classID);
     std::map<uint8, uint8> GetClassLevelsByClassForPlayer(Player* player);
     std::map<std::string, PlayerClassInfoItem> GetPlayerClassInfoByClassNameForPlayer(Player* player);
-    bool IsSpellAMasterSkill(uint32 spellID);
 
     PlayerControllerData GetPlayerControllerData(Player* player);
     void SetPlayerControllerData(PlayerControllerData controllerData);
@@ -143,7 +122,6 @@ public:
 };
 
 std::string GetClassStringFromID(uint8 classID);
-uint32 GetTokenItemIDForClass(uint8 classID);
 
 #define MultiClass MultiClassMod::instance()
 
