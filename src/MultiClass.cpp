@@ -773,7 +773,6 @@ public:
     void OnPreLogout(Player* player)
     {
         // If a class change is in progress, update the item visuals
-        // TODO: Transmog awareness
         PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
         if (controllerData.NextClass != player->getClass())
         {
