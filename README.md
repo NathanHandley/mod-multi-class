@@ -13,6 +13,7 @@ Features:
 
 ## Installation
 Install the same as any other standard installation.  See https://www.azerothcore.org/wiki/installation
+
 You MUST have the changes in this branch until the core is updated: https://github.com/NathanHandley/azerothcore-wotlk/tree/PlayerPreLogout
 
 ## Credits
