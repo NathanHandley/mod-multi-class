@@ -4,15 +4,16 @@
 
 ## Description
 
-With this mod, you will be able to switch your character from one class to another, without losing any non-class specific information souch as quests, achievements, and so on.
+With this mod, you will be able to switch your character from one class to another, without losing any non-class specific information souch as quests, achievements, professions, mounts, and so on.
 
-In addition, you can utilize skills from another class that you have leveled.  See the config for more information
+Features:
+- Class Change: Change your class with the '.class change' command
+- Shared Quest Log: By default, all of your classes share a quest long with one another.  This can be enabled and disabled on a class-by-class basis by the '.class sharequests' option.
+- See Classes: See all of your classes and properties with the '.class info'
 
 ## Installation
 Install the same as any other standard installation.  See https://www.azerothcore.org/wiki/installation
-Your server will need to be coded and configured to:
-- Allow all class abilities to work on all other classes
-- Allow all race/class combinations
+You MUST have the changes in this branch until the core is updated: https://github.com/NathanHandley/azerothcore-wotlk/tree/PlayerPreLogout
 
 ## Credits
 *  [Nathan Handley: Writing this module](https://github.com/NathanHandley)

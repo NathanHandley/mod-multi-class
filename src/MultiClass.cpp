@@ -736,6 +736,24 @@ void MultiClassMod::SetPlayerClassSettings(PlayerClassSettings classSettings)
         classSettings.UseSharedQuests == true ? 1 : 0);
 }
 
+string MultiClassMod::GetValidClassesStringForRace(uint8 race)
+{
+    string returnClassesString = "";
+    bool isFirstClass = false;
+    for (uint8 classIter = 0; classIter < MAX_CLASSES; ++classIter)
+    {
+        if (IsValidRaceClassCombo(classIter, race))
+        {
+            if (!isFirstClass)
+                returnClassesString += ", ";
+            isFirstClass = false;
+            returnClassesString += GetClassStringFromID(classIter);            
+        }
+    }
+
+    return returnClassesString;
+}
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -901,11 +919,13 @@ public:
         if (ConfigEnabled == false)
             return true;
 
+        Player* player = handler->GetPlayer();
+
         if (!*args)
         {
             handler->PSendSysMessage(".class change 'class'");
             handler->PSendSysMessage("Changes the player class on next logout.  Example: '.class change warrior'");
-            handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, deathknight, shaman, mage, warlock, druid");
+            handler->PSendSysMessage(string("Valid Class Values: " + MultiClass->GetValidClassesStringForRace(player->getRace())).c_str());
             return true;
         }
 
@@ -935,14 +955,14 @@ public:
         {
             handler->PSendSysMessage(".class change 'class'");
             handler->PSendSysMessage("Changes the player class.  Example: '.class change warrior'");
-            handler->PSendSysMessage("Valid Class Values: warrior, paladin, hunter, rogue, priest, deathknight, shaman, mage warlock, druid");
+            handler->PSendSysMessage(string("Valid Class Values: " + MultiClass->GetValidClassesStringForRace(player->getRace())).c_str());
             std::string enteredValueLine = "Entered Value was ";
             enteredValueLine.append(className);
             handler->PSendSysMessage(enteredValueLine.c_str());
             return true;
         }
 
-        Player* player = handler->GetPlayer();
+        
         MultiClass->MarkClassChangeOnNextLogout(handler, player, classInt);
         player->SaveToDB(false, false);
         

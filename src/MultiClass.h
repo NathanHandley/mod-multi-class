@@ -119,6 +119,8 @@ public:
     void SetPlayerControllerData(PlayerControllerData controllerData);
     PlayerClassSettings GetPlayerClassSettings(Player* player, uint8 classID);
     void SetPlayerClassSettings(PlayerClassSettings classSettings);
+
+    std::string GetValidClassesStringForRace(uint8 race);
 };
 
 std::string GetClassStringFromID(uint8 classID);
