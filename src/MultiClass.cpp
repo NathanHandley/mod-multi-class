@@ -468,7 +468,7 @@ bool MultiClassMod::PerformClassSwitch(Player* player, PlayerControllerData cont
     MoveEquipToModInventoryTable(player, transaction);
 
     // Update pet references
-    transaction->Append("UPDATE `character_pet` SET `multi_class_owner` = {], `multi_class_class` = {} WHERE `owner` = {}", player->GetGUID().GetCounter(), player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("UPDATE `character_pet` SET `multi_class_owner` = {}, `multi_class_class` = {} WHERE `owner` = {}", player->GetGUID().GetCounter(), player->getClass(), player->GetGUID().GetCounter());
     transaction->Append("UPDATE `character_pet` SET `owner` = 0 WHERE `multi_class_owner` = {} AND `multi_class_class` = {}", player->GetGUID().GetCounter(), player->getClass());
     transaction->Append("UPDATE `character_pet` SET `owner` = {} WHERE `multi_class_owner` = {} AND `multi_class_class` = {}", player->GetGUID().GetCounter(), player->GetGUID().GetCounter(), nextClass);
 
