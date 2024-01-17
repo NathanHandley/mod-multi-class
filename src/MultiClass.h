@@ -89,7 +89,7 @@ private:
     void MoveGlyphsToModGlyhpsTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveAuraToModAuraTable(Player* player, CharacterDatabaseTransaction& transaction);
     void MoveEquipToModInventoryTable(Player* player, CharacterDatabaseTransaction& transaction);
-
+         
     void UpdateCharacterFromModCharacterTable(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModSpellTableIntoCharacterSpells(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);
     void CopyModActionTableIntoCharacterAction(uint32 playerGUID, uint8 pullClassID, CharacterDatabaseTransaction& transaction);

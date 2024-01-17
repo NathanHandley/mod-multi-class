@@ -467,6 +467,11 @@ bool MultiClassMod::PerformClassSwitch(Player* player, PlayerControllerData cont
     MoveAuraToModAuraTable(player, transaction);
     MoveEquipToModInventoryTable(player, transaction);
 
+    // Update pet references
+    transaction->Append("UPDATE `character_pet` SET `multi_class_owner` = {], `multi_class_class` = {} WHERE `owner` = {}", player->GetGUID().GetCounter(), player->getClass(), player->GetGUID().GetCounter());
+    transaction->Append("UPDATE `character_pet` SET `owner` = 0 WHERE `multi_class_owner` = {} AND `multi_class_class` = {}", player->GetGUID().GetCounter(), player->getClass());
+    transaction->Append("UPDATE `character_pet` SET `owner` = {} WHERE `multi_class_owner` = {} AND `multi_class_class` = {}", player->GetGUID().GetCounter(), player->GetGUID().GetCounter(), nextClass);
+
     // New
     if (isNew)
     {
@@ -555,6 +560,7 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_controller WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_class_settings WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM character_pet WHERE owner = 0 AND multi_class_owner = {}", playerGUID);
     CharacterDatabase.CommitTransaction(transaction);
     return true;
 }
