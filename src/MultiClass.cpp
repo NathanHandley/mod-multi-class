@@ -370,31 +370,40 @@ void MultiClassMod::AddSpellLearnAndUnlearnsForGatheringSkillForPlayer(Player* p
     // Get level
     uint8 playerLevel = player->GetLevel();
 
-    uint32 properSpellID = 0;
     if (player->HasSkill(skillID))
     {
         uint16 skillValue = player->GetSkillValue(skillID);
-        if (skillValue >= 450 && playerLevel >= 55)
-            properSpellID = skillSpellIDs[0];
-        else if (skillValue >= 375 && playerLevel >= 40)
-            properSpellID = skillSpellIDs[1];
-        else if (skillValue >= 300 && playerLevel >= 25)
-            properSpellID = skillSpellIDs[2];
-        else if (skillValue >= 225 && playerLevel >= 10)
-            properSpellID = skillSpellIDs[3];
-        else if (skillValue >= 150)
-            properSpellID = skillSpellIDs[4];
-        else if (skillValue >= 75)
-            properSpellID = skillSpellIDs[5];
 
-        for (uint32 skillSpellID : skillSpellIDs)
+        // Learn the one you should know.  Have to unlearn the current rank first for it to reflect properly
+        if (playerLevel >= 55 && skillValue >= 450)
         {
-            if (properSpellID == skillSpellID)
-                inOutSpellLearns.push_back(skillSpellID);
-            else if (!player->HasSpell(skillSpellID))
-                continue;
-            else if (properSpellID == 0 || properSpellID != skillSpellID)
-                inOutSpellUnlearns.push_back(skillSpellID);
+            inOutSpellUnlearns.push_back(skillSpellIDs[0]);
+            inOutSpellLearns.push_back(skillSpellIDs[0]);
+        }
+        else if (playerLevel >= 40 && skillValue >= 375)
+        {
+            inOutSpellUnlearns.push_back(skillSpellIDs[1]);
+            inOutSpellLearns.push_back(skillSpellIDs[1]);
+        }
+        else if (playerLevel >= 25 && skillValue >= 300)
+        {
+            inOutSpellUnlearns.push_back(skillSpellIDs[2]);
+            inOutSpellLearns.push_back(skillSpellIDs[2]);
+        }
+        else if (playerLevel >= 10 && skillValue >= 225)
+        {
+            inOutSpellUnlearns.push_back(skillSpellIDs[3]);
+            inOutSpellLearns.push_back(skillSpellIDs[3]);
+        }
+        else if (skillValue >= 150)
+        {
+            inOutSpellUnlearns.push_back(skillSpellIDs[4]);
+            inOutSpellLearns.push_back(skillSpellIDs[4]);
+        }
+        else if (skillValue >= 75)
+        {
+            inOutSpellUnlearns.push_back(skillSpellIDs[5]);
+            inOutSpellLearns.push_back(skillSpellIDs[5]);
         }
     }
 }
