@@ -53,6 +53,7 @@ struct PlayerClassInfoItem
     std::string ClassName;
     uint8 Level;
     uint8 UseSharedQuests;
+    uint8 UseSharedReputation;
 };
 
 struct PlayerClassSettings
@@ -60,6 +61,7 @@ struct PlayerClassSettings
     uint32 GUID;
     uint8 ClassID;
     bool UseSharedQuests;
+    bool UseSharedReputation;
 };
 
 struct PlayerControllerData
@@ -67,6 +69,7 @@ struct PlayerControllerData
     uint32 GUID;
     uint8 NextClass;
     uint8 ActiveClassQuests;
+    uint8 ActiveClassReputation;
 };
 
 struct PlayerEquipedItemData
@@ -123,9 +126,11 @@ public:
     bool LoadClassAbilityData();
 
     bool MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass);
-    bool MarkChangeQuestShareForCurrentClassOnNextLogout(Player* player, bool doQuestShare);
+    bool MarkChangeQuestShareForCurrentClassOnNextLogout(Player* player, bool useSharedQuests);
+    bool MarkChangeReputationShareForCurrentClassOnNextLogout(Player* player, bool useSharedReputation);
     bool PerformClassSwitch(Player* player, PlayerControllerData controllerData);
     bool PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDataClass, uint8 nextQuestDataClass);
+    bool PerformReputationDataSwitch(uint32 playerGUID, uint8 prevReputationDataClass, uint8 nextReputationDataClass);
     bool PerformPlayerDelete(ObjectGuid guid);
     void PerformKnownSpellUpdateFromMasterSkills(Player* player);
     bool PerformTokenIssuesForPlayerClass(Player* player, uint8 classID);
