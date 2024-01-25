@@ -9,6 +9,7 @@ With this mod, you will be able to switch your character from one class to anoth
 Features:
 - Class Change: Change your class with the '.class change' command
 - Shared Quest Log: By default, all of your classes share a quest long with one another.  This can be enabled and disabled on a class-by-class basis by the '.class sharequests' option.
+- Shared Reputation: By default, all of your classes share reputations with one another.  This can be enabled and disabled on a class-by-class basis by the '.class sharereputation' option.
 - See Classes: See all of your classes and properties with the '.class info'
 
 ## Installation

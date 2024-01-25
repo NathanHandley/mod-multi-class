@@ -402,13 +402,7 @@ bool MultiClassMod::LoadClassAbilityData()
 
 bool MultiClassMod::MarkClassChangeOnNextLogout(ChatHandler* handler, Player* player, uint8 newClass)
 {
-    // Don't do anything if we're already that class
-    if (newClass == player->getClass())
-    {
-        handler->PSendSysMessage("Class change requested is the current class, so taking no action on the next login.");
-        return false;
-    }
-    else if (!IsValidRaceClassCombo(newClass, player->getRace()))
+    if (!IsValidRaceClassCombo(newClass, player->getRace()))
     {
         handler->PSendSysMessage("Class change could not be completed because this class and race combo is not enabled on the server.");
         return false;
@@ -444,6 +438,20 @@ bool MultiClassMod::MarkChangeQuestShareForCurrentClassOnNextLogout(Player* play
     else
     {
         classSettings.UseSharedQuests = useSharedQuests;
+        SetPlayerClassSettings(classSettings);
+        return true;
+    }
+}
+
+// Enables or Disables reputation sharing for the current player class
+bool MultiClassMod::MarkChangeReputationShareForCurrentClassOnNextLogout(Player* player, bool useSharedReputation)
+{
+    PlayerClassSettings classSettings = GetPlayerClassSettings(player, player->getClass());
+    if (classSettings.UseSharedReputation == useSharedReputation)
+        return false;
+    else
+    {
+        classSettings.UseSharedReputation = useSharedReputation;
         SetPlayerClassSettings(classSettings);
         return true;
     }
@@ -542,6 +550,28 @@ bool MultiClassMod::PerformQuestDataSwitch(uint32 playerGUID, uint8 prevQuestDat
     return true;
 }
 
+bool MultiClassMod::PerformReputationDataSwitch(uint32 playerGUID, uint8 prevReputationDataClass, uint8 nextReputationDataClass)
+{
+    // Set up the transaction
+    CharacterDatabaseTransaction transaction = CharacterDatabase.BeginTransaction();
+
+    // Delete the old mod reputation data at the target
+    transaction->Append("DELETE FROM `mod_multi_class_character_reputation` WHERE guid = {} AND class = {}", playerGUID, prevReputationDataClass);
+
+    // Copy this quest data into the mod quest data
+    transaction->Append("INSERT INTO `mod_multi_class_character_reputation` (`guid`, `class`, `faction`, `standing`, `flags`) SELECT {}, {}, `faction`, `standing`, `flags` FROM character_reputation WHERE guid = {}", playerGUID, prevReputationDataClass, playerGUID);
+
+    // Delete the active quest data
+    transaction->Append("DELETE FROM `character_reputation` WHERE guid = {}", playerGUID);
+
+    // Insert in the related quest data from mod
+    transaction->Append("INSERT INTO `character_reputation` (`guid`, `faction`, `standing`, `flags`) SELECT {}, `faction`, `standing`, `flags` FROM mod_multi_class_character_reputation WHERE guid = {} AND class = {}", playerGUID, playerGUID, nextReputationDataClass);
+
+    // Commit the transaction
+    CharacterDatabase.CommitTransaction(transaction);
+    return true;
+}
+
 bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
 {
     // Delete every mod table record with this player guid
@@ -558,6 +588,7 @@ bool MultiClassMod::PerformPlayerDelete(ObjectGuid guid)
     transaction->Append("DELETE FROM mod_multi_class_character_inventory WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_queststatus_rewarded WHERE guid = {}", playerGUID);
+    transaction->Append("DELETE FROM mod_multi_class_character_reputation WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_controller WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM mod_multi_class_character_class_settings WHERE guid = {}", playerGUID);
     transaction->Append("DELETE FROM character_pet WHERE owner = 0 AND multi_class_owner = {}", playerGUID);
@@ -684,6 +715,7 @@ map<string, PlayerClassInfoItem> MultiClassMod::GetPlayerClassInfoByClassNameFor
     {
         PlayerClassSettings curClassSettings = GetPlayerClassSettings(player, playerClassInfoItem.second.ClassID);
         playerClassInfoItem.second.UseSharedQuests = curClassSettings.UseSharedQuests;
+        playerClassInfoItem.second.UseSharedReputation = curClassSettings.UseSharedReputation;
     }
 
     return playerClassInfoByClass;
@@ -693,27 +725,30 @@ PlayerControllerData MultiClassMod::GetPlayerControllerData(Player* player)
 {
     PlayerControllerData controllerData;
     controllerData.GUID = player->GetGUID().GetCounter();
-    QueryResult queryResult = CharacterDatabase.Query("SELECT nextClass, activeClassQuests FROM mod_multi_class_character_controller WHERE guid = {}", player->GetGUID().GetCounter());
+    QueryResult queryResult = CharacterDatabase.Query("SELECT nextClass, activeClassQuests, activeClassReputation FROM mod_multi_class_character_controller WHERE guid = {}", player->GetGUID().GetCounter());
     if (!queryResult || queryResult->GetRowCount() == 0)
     {
         controllerData.NextClass = player->getClass();
         controllerData.ActiveClassQuests = CLASS_NONE;
+        controllerData.ActiveClassReputation = CLASS_NONE;
     }
     else
     {
         Field* fields = queryResult->Fetch();
         controllerData.NextClass = fields[0].Get<uint8>();
         controllerData.ActiveClassQuests = fields[1].Get<uint8>();
+        controllerData.ActiveClassReputation = fields[2].Get<uint8>();
     }
     return controllerData;
 }
 
 void MultiClassMod::SetPlayerControllerData(PlayerControllerData controllerData)
 {
-    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_controller` (`guid`, `nextClass`, `activeClassQuests`) VALUES ({}, {}, {})",
+    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_controller` (`guid`, `nextClass`, `activeClassQuests`, activeClassReputation) VALUES ({}, {}, {}, {})",
         controllerData.GUID,
         controllerData.NextClass,
-        controllerData.ActiveClassQuests);
+        controllerData.ActiveClassQuests,
+        controllerData.ActiveClassReputation);
 }
 
 PlayerClassSettings MultiClassMod::GetPlayerClassSettings(Player* player, uint8 classID)
@@ -721,25 +756,28 @@ PlayerClassSettings MultiClassMod::GetPlayerClassSettings(Player* player, uint8 
     PlayerClassSettings classSettings;
     classSettings.GUID = player->GetGUID().GetCounter();
     classSettings.ClassID = classID;
-    QueryResult queryResult = CharacterDatabase.Query("SELECT useSharedQuests FROM mod_multi_class_character_class_settings WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
+    QueryResult queryResult = CharacterDatabase.Query("SELECT useSharedQuests, useSharedReputation FROM mod_multi_class_character_class_settings WHERE guid = {} AND class = {}", player->GetGUID().GetCounter(), classID);
     if (!queryResult || queryResult->GetRowCount() == 0)
     {
         classSettings.UseSharedQuests = true;
+        classSettings.UseSharedReputation = true;
     }
     else
     {
         Field* fields = queryResult->Fetch();
         classSettings.UseSharedQuests = fields[0].Get<uint8>() == 1 ? true : false;
+        classSettings.UseSharedReputation = fields[1].Get<uint8>() == 1 ? true : false;
     }
     return classSettings;
 }
 
 void MultiClassMod::SetPlayerClassSettings(PlayerClassSettings classSettings)
 {
-    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_class_settings` (`guid`, `class`, `useSharedQuests`) VALUES ({}, {}, {})",
+    CharacterDatabase.DirectExecute("REPLACE INTO `mod_multi_class_character_class_settings` (`guid`, `class`, `useSharedQuests`, useSharedReputation) VALUES ({}, {}, {}, {})",
         classSettings.GUID,
         classSettings.ClassID,
-        classSettings.UseSharedQuests == true ? 1 : 0);
+        classSettings.UseSharedQuests == true ? 1 : 0,
+        classSettings.UseSharedReputation == true ? 1 : 0);
 }
 
 string MultiClassMod::GetValidClassesStringForRace(uint8 race)
@@ -833,6 +871,26 @@ public:
             controllerData.ActiveClassQuests = controllerData.NextClass;
             MultiClass->SetPlayerControllerData(controllerData);
         }
+
+        // Reputation Change
+        if (nextClassSettings.UseSharedReputation == true && controllerData.ActiveClassReputation != CLASS_NONE)
+        {
+            if (!MultiClass->PerformReputationDataSwitch(player->GetGUID().GetCounter(), controllerData.ActiveClassReputation, CLASS_NONE))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully perform reputation data switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+            controllerData.ActiveClassReputation = CLASS_NONE;
+            MultiClass->SetPlayerControllerData(controllerData);
+        }
+        else if (nextClassSettings.UseSharedReputation == false && controllerData.ActiveClassReputation != controllerData.NextClass)
+        {
+            if (!MultiClass->PerformReputationDataSwitch(player->GetGUID().GetCounter(), controllerData.ActiveClassReputation, controllerData.NextClass))
+            {
+                LOG_ERROR("module", "multiclass: Could not successfully perform reputation data switch on logout for player {} with GUID {}", player->GetName(), player->GetGUID().GetCounter());
+            }
+            controllerData.ActiveClassReputation = controllerData.NextClass;
+            MultiClass->SetPlayerControllerData(controllerData);
+        }
     }
 
     void OnDelete(ObjectGuid guid, uint32 /*accountId*/)
@@ -910,6 +968,7 @@ public:
             { "change",             SEC_PLAYER,     true, &HandleMultiClassChangeClass,              "Changes your class" },
             { "info",               SEC_PLAYER,     true, &HandleMultiClassInfo,              "Shows all your classes, their level, and other properties" },
             { "sharequests",        SEC_PLAYER,     true, &HandleMultiClassShareQuests,              "Toggle between sharing or not sharing quests on the current class" },
+            { "sharereputation", SEC_PLAYER, true, &HandleMultiClassShareReputation, "Toggle between sharing or not sharing reputation on the current class" },
         };
 
         static std::vector<ChatCommand> commandTable =
@@ -989,11 +1048,17 @@ public:
         // Write the information out
         for (auto& playerClassInfoItem : playerClassInfoItems)
         {
-            string currentLine = " - " + playerClassInfoItem.second.ClassName + "(" + std::to_string(playerClassInfoItem.second.Level) + "), shared quests is ";
+            string currentLine = " - " + playerClassInfoItem.second.ClassName + "(" + std::to_string(playerClassInfoItem.second.Level) + "), Shared: Quests(";
             if (playerClassInfoItem.second.UseSharedQuests)
                 currentLine += "|cff4CFF00ON|r";
             else
                 currentLine += "|cffff0000OFF|r";
+            currentLine += "), Reputation(";
+            if (playerClassInfoItem.second.UseSharedReputation)
+                currentLine += "|cff4CFF00ON|r";
+            else
+                currentLine += "|cffff0000OFF|r";
+            currentLine += ")";
             handler->PSendSysMessage(currentLine.c_str());
         }
 
@@ -1047,6 +1112,60 @@ public:
             handler->PSendSysMessage(".class sharequests 'on/off'.  Default is ON");
             handler->PSendSysMessage("Toggles on/off if the currently played class has its own quest log.  Example: '.class sharequests off'");
             handler->PSendSysMessage("Valid Values: on, off.");
+            std::string enteredValueLine = "Entered Value was ";
+            enteredValueLine.append(enteredValue);
+            handler->PSendSysMessage(enteredValueLine.c_str());
+            return true;
+        }
+    }
+
+    static bool HandleMultiClassShareReputation(ChatHandler* handler, const char* args)
+    {
+        if (ConfigEnabled == false)
+            return true;
+
+        if (!*args)
+        {
+            handler->PSendSysMessage(".class sharereputation 'on/off'.  Default is ON");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own reputations.  Example: '.class sharereputation off'");
+            handler->PSendSysMessage("Requires logging out to take effect");
+            return true;
+        }
+
+        std::string enteredValue = strtok((char*)args, " ");
+        if (enteredValue.starts_with("ON") || enteredValue.starts_with("on") || enteredValue.starts_with("On"))
+        {
+            Player* player = handler->GetPlayer();
+            if (MultiClass->MarkChangeReputationShareForCurrentClassOnNextLogout(player, true) == true)
+            {
+                handler->PSendSysMessage("Success. Shared reputation will be used on this class next login");
+                return true;
+            }
+            else
+            {
+                handler->PSendSysMessage("Share reputation is already 'on' for this class, so no action is taken");
+                return true;
+            }
+        }
+        else if (enteredValue.starts_with("OF") || enteredValue.starts_with("Of") || enteredValue.starts_with("of"))
+        {
+            Player* player = handler->GetPlayer();
+            if (MultiClass->MarkChangeReputationShareForCurrentClassOnNextLogout(player, false) == true)
+            {
+                handler->PSendSysMessage("Success. Shared reputation will no longer be used on this class next login");
+                return true;
+            }
+            else
+            {
+                handler->PSendSysMessage("Share reputation is already 'off' for this class, so no action is taken");
+                return true;
+            }
+        }
+        else
+        {
+            handler->PSendSysMessage(".class sharereputation 'on/off'.  Default is ON");
+            handler->PSendSysMessage("Toggles on/off if the currently played class has its own reputations.  Example: '.class sharereputation off'");
+            handler->PSendSysMessage("Requires logging out to take effect");
             std::string enteredValueLine = "Entered Value was ";
             enteredValueLine.append(enteredValue);
             handler->PSendSysMessage(enteredValueLine.c_str());
