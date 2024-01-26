@@ -1174,15 +1174,15 @@ public:
         if (ConfigEnabled == false)
             return;
 
-        if (ConfigDisplayInstructionMessage)
-        {
-            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
-        }	    
-
         if (ConfigEnableMasterSkills)
         {
             MultiClass->PerformKnownSpellUpdateFromMasterSkills(player);
             MultiClass->PerformTokenIssuesForPlayerClass(player, player->getClass());
+        }
+
+        if (ConfigDisplayInstructionMessage)
+        {
+            ChatHandler(player->GetSession()).SendSysMessage("Type |cff4CFF00.class |rto change or edit classes.");
         }
     }
 
