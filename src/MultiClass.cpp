@@ -1174,7 +1174,8 @@ class MultiClass_UnitScript : public UnitScript
 public:
     MultiClass_UnitScript() : UnitScript("MultiClass_UnitScript") {}
 
-    Optional<bool> IsClass(Unit const* unit, Classes /*unitClass*/, ClassContext context)
+    // TODO: Implement CLASS_CONTEXT_PET
+    Optional<bool> IsClass(Unit const* unit, Classes unitClass, ClassContext context)
     {
         // Ignore if not a player
         if (unit->GetTypeId() != TYPEID_PLAYER)
@@ -1182,20 +1183,21 @@ public:
 
         switch (context)
         {
-            // If in a druid combat shapeshift form, then use stat logic even if not a druid
+            // If in a druid combat shapeshift form, then use stat logic only for druid
             case CLASS_CONTEXT_STATS:
             {
                 if (unit->GetShapeshiftForm() == FORM_CAT
                     || unit->GetShapeshiftForm() == FORM_BEAR
                     || unit->GetShapeshiftForm() == FORM_DIREBEAR)
                 {
-                    return true;
+                    if (unitClass == CLASS_DRUID)
+                        return true;
+                    else
+                        return std::nullopt;
                 }
             } break;
             // Any class can use any base ability
             case CLASS_CONTEXT_ABILITY:
-            // Any class can use any pet
-            case CLASS_CONTEXT_PET: // TODO: Logic changes required to function
             // Any class can loot or use any equipment
             case CLASS_CONTEXT_EQUIP_RELIC:
             case CLASS_CONTEXT_EQUIP_SHIELDS:
