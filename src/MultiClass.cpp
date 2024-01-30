@@ -1175,15 +1175,14 @@ public:
     MultiClass_UnitScript() : UnitScript("MultiClass_UnitScript") {}
 
     // TODO: Implement CLASS_CONTEXT_PET
+    // Note: Client Binary Changes are needed for the following to function:
+    // - Rune abilities reactivating after rune depletion and recharge
+    // - Show combo points on non-druid and non-rogue
     Optional<bool> IsClass(Unit const* unit, Classes unitClass, ClassContext context)
     {
         // Ignore if not a player
         if (unit->GetTypeId() != TYPEID_PLAYER)
             return std::nullopt;
-
-        // Disable DK's 'everything' on Non-DKs
-        if (unitClass == CLASS_DEATH_KNIGHT && unit->getClass() != CLASS_DEATH_KNIGHT)
-            return false;
 
         switch (context)
         {
