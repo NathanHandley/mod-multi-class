@@ -1202,7 +1202,7 @@ public:
             // Any class can use any base ability
             //  - Note: Required for resource initialization and recharging for DK Runes
             case CLASS_CONTEXT_ABILITY:
-            // Any class can loot (and should be able to roll on) and use any equipment
+            // Any class can loot (and should be able to roll on) and use any equipment identified in DBC
             case CLASS_CONTEXT_EQUIP_RELIC:
             case CLASS_CONTEXT_EQUIP_SHIELDS:
             case CLASS_CONTEXT_EQUIP_ARMOR_CLASS:
