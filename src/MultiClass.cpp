@@ -1181,6 +1181,10 @@ public:
         if (unit->GetTypeId() != TYPEID_PLAYER)
             return std::nullopt;
 
+        // Disable DK's 'everything' on Non-DKs
+        if (unitClass == CLASS_DEATH_KNIGHT && unit->getClass() != CLASS_DEATH_KNIGHT)
+            return false;
+
         switch (context)
         {
             // If in a druid combat shapeshift form, then use stat logic only for druid
