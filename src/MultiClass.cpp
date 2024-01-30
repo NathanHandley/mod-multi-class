@@ -1186,7 +1186,7 @@ public:
 
         switch (context)
         {
-            // If in a druid combat shapeshift form, then use stat logic only for druid
+            // If in a druid combat shapeshift form, then use stat logic for druid forms even if not a druid
             case CLASS_CONTEXT_STATS:
             {
                 if (unit->GetShapeshiftForm() == FORM_CAT
@@ -1196,16 +1196,16 @@ public:
                     if (unitClass == CLASS_DRUID)
                         return true;
                     else
-                        return std::nullopt;
+                        return false;
                 }
             } break;
             // Any class can use any base ability
+            //  - Note: Required for resource initialization and recharging for DK Runes
             case CLASS_CONTEXT_ABILITY:
-            // Any class can loot or use any equipment
+            // Any class can loot (and should be able to roll on) and use any equipment
             case CLASS_CONTEXT_EQUIP_RELIC:
             case CLASS_CONTEXT_EQUIP_SHIELDS:
             case CLASS_CONTEXT_EQUIP_ARMOR_CLASS:
-            case CLASS_CONTEXT_EQUIP_WEAPON:
             {    
                 return true;
             }
