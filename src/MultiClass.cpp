@@ -26,6 +26,7 @@
 #include "ScriptMgr.h"
 #include "StringConvert.h"
 #include "Tokenize.h"
+#include "Unit.h"
 #include "World.h"
 
 #include "MultiClass.h"
@@ -480,7 +481,7 @@ uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player, uint8 classID
         return 0;
 
     // Ignore if death knight
-    if (player->getClass() == CLASS_DEATH_KNIGHT)
+    if (player->IsClass(CLASS_DEATH_KNIGHT))
         return 0;
 
     // Get this class level
@@ -526,7 +527,7 @@ uint8 MultiClassMod::GetTokenCountToIssueForPlayer(Player* player, uint8 classID
 bool MultiClassMod::RefundTokenCountForPlayerClass(Player* player, uint8 classID, uint8 tokenCountToRefund)
 {
     // Ignore if death knight
-    if (player->getClass() == CLASS_DEATH_KNIGHT)
+    if (player->IsClass(CLASS_DEATH_KNIGHT))
         return true;
 
     // Do nothing if nothing is refunded
@@ -1164,6 +1165,38 @@ void MultiClassMod::SetPlayerClassSettings(PlayerClassSettings classSettings)
         classSettings.UseSharedReputation == true ? 1 : 0);
 }
 
+static int cntone = 0;
+static int cnttwo = 0;
+static int cntthree = 0;
+
+class MultiClass_UnitScript : public UnitScript
+{
+public:
+    MultiClass_UnitScript() : UnitScript("MultiClass_UnitScript") {}
+
+    Optional<bool> IsClass(Unit const* /*unit*/, Classes /*unitClass*/, ClassContext context)
+    {
+        switch (context)
+        {
+            // Any class can use any ability
+            case CLASS_CONTEXT_ABILITY:
+            // Any class can loot or use any equipment
+            case CLASS_CONTEXT_EQUIP_RELIC:
+            case CLASS_CONTEXT_EQUIP_SHIELDS:
+            case CLASS_CONTEXT_EQUIP_ARMOR_CLASS:
+            case CLASS_CONTEXT_EQUIP_WEAPON:
+            {    
+                return true;
+            }
+            default:
+            {
+                return std::nullopt;
+            }
+        }
+        return std::nullopt;
+    }
+};
+
 class MultiClass_PlayerScript : public PlayerScript
 {
 public:
@@ -1689,4 +1722,5 @@ void AddMultiClassScripts()
     new MultiClass_CommandScript();
     new MultiClass_PlayerScript();
     new MultiClass_WorldScript();
+    new MultiClass_UnitScript();
 }
