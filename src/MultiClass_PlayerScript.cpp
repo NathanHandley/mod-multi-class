@@ -30,7 +30,7 @@ class MultiClass_PlayerScript : public PlayerScript
 public:
     MultiClass_PlayerScript() : PlayerScript("MultiClass_PlayerScript") {}
 
-    // TODO: Implement CLASS_CONTEXT_PET
+    // TODO: Implement CLASS_CONTEXT_PET and CLASS_CONTEXT_PET_CHARM
     // Note: Client Binary Changes are needed for the following to function:
     // - Rune abilities reactivating after rune depletion and recharge
     // - Show combo points on non-druid and non-rogue
