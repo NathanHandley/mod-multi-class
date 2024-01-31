@@ -92,7 +92,7 @@ public:
     }
 };
 
-void AddWorldScripts()
-{;
+void AddMultiClassWorldScripts()
+{
     new MultiClass_WorldScript();
 }

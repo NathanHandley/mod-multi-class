@@ -212,7 +212,7 @@ public:
     }
 };
 
-void AddPlayerScripts()
+void AddMultiClassPlayerScripts()
 {
     new MultiClass_PlayerScript();
 }

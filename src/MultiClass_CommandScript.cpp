@@ -303,7 +303,7 @@ public:
     }
 };
 
-void AddCommandScripts()
+void AddMultiClassCommandScripts()
 {
     new MultiClass_CommandScript();
 }
