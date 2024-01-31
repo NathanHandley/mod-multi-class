@@ -83,6 +83,16 @@ struct PlayerEquipedItemData
 
 class MultiClassMod
 {
+public:
+    // Configs
+    bool ConfigEnabled;
+    bool ConfigDisplayInstructionMessage;
+    std::set<uint32> ConfigCrossClassIncludeSkillIDs;
+    bool ConfigUsingTransmogMod;                     // If true, factor for the transmog fakeEntry table records
+    bool ConfigEnableMasterSkills;                   // If true, the player can learn spells from other classes
+    uint8 ConfigLevelsPerToken;                      // How many levels per token issued
+    std::set<uint32> ConfigBonusTokenLevels;              // Levels where an extra token is awarded
+
 private:
     MultiClassMod();
 
