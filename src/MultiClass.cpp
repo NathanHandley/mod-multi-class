@@ -1169,59 +1169,53 @@ static int cntone = 0;
 static int cnttwo = 0;
 static int cntthree = 0;
 
-class MultiClass_UnitScript : public UnitScript
+class MultiClass_PlayerScript : public PlayerScript
 {
 public:
-    MultiClass_UnitScript() : UnitScript("MultiClass_UnitScript") {}
+    MultiClass_PlayerScript() : PlayerScript("MultiClass_PlayerScript") {}
 
     // TODO: Implement CLASS_CONTEXT_PET
     // Note: Client Binary Changes are needed for the following to function:
     // - Rune abilities reactivating after rune depletion and recharge
     // - Show combo points on non-druid and non-rogue
-    Optional<bool> IsClass(Unit const* unit, Classes unitClass, ClassContext context)
+    Optional<bool> IsClass(Player const* player, Classes playerClass, ClassContext context)
     {
-        // Ignore if not a player
-        if (unit->GetTypeId() != TYPEID_PLAYER)
-            return std::nullopt;
-
         switch (context)
         {
             // If in a druid combat shapeshift form, then use stat logic for druid forms even if not a druid
-            case CLASS_CONTEXT_STATS:
+        case CLASS_CONTEXT_STATS:
+        {
+            if (player->GetShapeshiftForm() == FORM_CAT
+                || player->GetShapeshiftForm() == FORM_BEAR
+                || player->GetShapeshiftForm() == FORM_DIREBEAR)
             {
-                if (unit->GetShapeshiftForm() == FORM_CAT
-                    || unit->GetShapeshiftForm() == FORM_BEAR
-                    || unit->GetShapeshiftForm() == FORM_DIREBEAR)
+                if (playerClass == CLASS_DRUID)
                 {
-                    if (unitClass == CLASS_DRUID)
-                        return true;
-                    else
-                        return false;
+                    return true;
                 }
-            } break;
-            // Any class can use any base ability
-            //  - Note: Required for resource initialization and recharging for DK Runes
-            case CLASS_CONTEXT_ABILITY:
+                else
+                {
+                    return false;
+                }
+            }
+        } break;
+        // Any class can use any base ability
+        //  - Note: Required for resource initialization and recharging for DK Runes
+        case CLASS_CONTEXT_ABILITY:
             // Any class can loot (and should be able to roll on) and use any equipment identified in DBC
-            case CLASS_CONTEXT_EQUIP_RELIC:
-            case CLASS_CONTEXT_EQUIP_SHIELDS:
-            case CLASS_CONTEXT_EQUIP_ARMOR_CLASS:
-            {    
-                return true;
-            }
-            default:
-            {
-                return std::nullopt;
-            }
+        case CLASS_CONTEXT_EQUIP_RELIC:
+        case CLASS_CONTEXT_EQUIP_SHIELDS:
+        case CLASS_CONTEXT_EQUIP_ARMOR_CLASS:
+        {
+            return true;
+        }
+        default:
+        {
+            return std::nullopt;
+        }
         }
         return std::nullopt;
     }
-};
-
-class MultiClass_PlayerScript : public PlayerScript
-{
-public:
-    MultiClass_PlayerScript() : PlayerScript("MultiClass_PlayerScript") {}
 
     void OnLogin(Player* player)
     {
@@ -1743,5 +1737,4 @@ void AddMultiClassScripts()
     new MultiClass_CommandScript();
     new MultiClass_PlayerScript();
     new MultiClass_WorldScript();
-    new MultiClass_UnitScript();
 }
