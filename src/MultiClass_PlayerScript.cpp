@@ -58,7 +58,7 @@ public:
         // Any class can use any base ability
         //  - Note: Required for resource initialization and recharging for DK Runes
         case CLASS_CONTEXT_ABILITY:
-        // Also also reactives on all classes, but do special logic for Overpower (TODO)
+        // Also enable reactives on all classes, but do special logic for Overpower (TODO)
         case CLASS_CONTEXT_ABILITY_REACTIVE:
         // Any class can loot (and should be able to roll on) and use any equipment identified in DBC
         case CLASS_CONTEXT_EQUIP_RELIC:
