@@ -34,7 +34,7 @@ public:
     // Note: Client Binary Changes are needed for the following to function:
     // - Rune abilities reactivating after rune depletion and recharge
     // - Show combo points on non-druid and non-rogue
-    Optional<bool> IsClass(Player const* player, Classes playerClass, ClassContext context)
+    Optional<bool> OnPlayerIsClass(Player const* player, Classes playerClass, ClassContext context)
     {
         switch (context)
         {
