@@ -75,7 +75,7 @@ public:
         return std::nullopt;
     }
 
-    Optional<bool> OnPlayerHasActivePowerType(Player const* /*player*/, Powers /*power*/)
+    bool OnPlayerHasActivePowerType(Player const* /*player*/, Powers /*power*/)
     {
         // For enable all powers for all classes
         return true;
