@@ -38,7 +38,7 @@ public:
     {
         switch (context)
         {
-            // If in a druid combat shapeshift form, then use stat logic for druid forms even if not a druid
+        // If in a druid combat shapeshift form, then use stat logic for druid forms even if not a druid
         case CLASS_CONTEXT_STATS:
         {
             if (player->GetShapeshiftForm() == FORM_CAT
