@@ -1,6 +1,10 @@
-void AddMultiClassScripts();
+void AddMultiClassCommandScripts();
+void AddMultiClassPlayerScripts();
+void AddMultiClassWorldScripts();
 
 void Addmod_multi_classScripts()
 {
-    AddMultiClassScripts();
+    AddMultiClassCommandScripts();
+    AddMultiClassPlayerScripts();
+    AddMultiClassWorldScripts();
 }
