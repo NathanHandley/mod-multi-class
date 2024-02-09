@@ -55,6 +55,10 @@ public:
                 }
             }
         } break;
+        // Allow any pets on any classes
+        case CLASS_CONTEXT_PET:
+        // Allow charm mechanics (normally restricted to warlock on demons) to all classes
+        case CLASS_CONTEXT_PET_CHARM:       
         // Any class can use any base ability
         //  - Note: Required for resource initialization and recharging for DK Runes
         case CLASS_CONTEXT_ABILITY:
@@ -77,8 +81,41 @@ public:
 
     bool OnPlayerHasActivePowerType(Player const* /*player*/, Powers /*power*/)
     {
-        // For enable all powers for all classes
+        // Enable all powers for all classes
         return true;
+    }
+
+    void OnBeforeGuardianInitStatsForLevel(Player* /*player*/, Guardian* guardian, CreatureTemplate const* /*cinfo*/, PetType& petType)
+    {
+        // Determine the pet type based on guardian
+        uint32 entry = guardian->GetEntry();
+        if (entry == NPC_INFERNAL
+            || entry == NPC_IMP
+            || entry == NPC_FELHUNTER
+            || entry == NPC_VOIDWALKER
+            || entry == NPC_SUCCUBUS
+            || entry == NPC_DOOMGUARD
+            || entry == NPC_FELGUARD
+            || entry == NPC_EYE_OF_KILROGG
+            || entry == NPC_WATER_ELEMENTAL_TEMP
+            || entry == NPC_MIRROR_IMAGE
+            || entry == NPC_WATER_ELEMENTAL_PERM
+            || entry == NPC_TREANT
+            || entry == NPC_SHADOWFIEND
+            || entry == NPC_FIRE_ELEMENTAL
+            || entry == NPC_EARTH_ELEMENTAL
+            || entry == NPC_FERAL_SPIRIT
+            || entry == NPC_RISEN_GHOUL
+            || entry == NPC_BLOODWORM
+            || entry == NPC_ARMY_OF_THE_DEAD
+            || entry == NPC_EBON_GARGOYLE
+            || entry == NPC_GENERIC_IMP
+            || entry == NPC_GENERIC_VOIDWALKER)
+        {
+            petType = SUMMON_PET;
+        }
+        else
+            petType = HUNTER_PET;
     }
 
     void OnLogin(Player* player)
