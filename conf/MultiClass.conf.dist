@@ -67,6 +67,6 @@ MultiClass.MasterSkills.LevelsPerToken = 10
 #        Description: Comma delimited list of levels that give an extra token, on top of above
 #        Values:      Any combination of levels.  Default = 81, 82, 83
 
-MultiClass.MasterSkills.BonusTokenLevels = 81, 82, 83
+MultiClass.MasterSkills.BonusTokenLevels = 81, 82, 83, 84, 85, 86, 87, 88, 89, 90
 
 ###################################################################################################
