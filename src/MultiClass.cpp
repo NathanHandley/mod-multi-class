@@ -86,7 +86,7 @@ void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, Chara
         transaction->Append("INSERT IGNORE INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
             player->GetGUID().GetCounter(),
             player->getClass(),
-            player->getLevel(),
+            player->GetLevel(),
             player->GetUInt32Value(PLAYER_XP),
             fields[0].Get<uint32>(),                // leveltime
             finiteAlways(fields[1].Get<float>()),   // rest_bonus
@@ -963,17 +963,17 @@ public:
 
     std::vector<ChatCommand> GetCommands() const
     {
-        static std::vector<ChatCommand> CommandTable =
+        static std::vector<ChatCommand> classCommandTable =
         {
-            { "change",             SEC_PLAYER,     true, &HandleMultiClassChangeClass,              "Changes your class" },
-            { "info",               SEC_PLAYER,     true, &HandleMultiClassInfo,              "Shows all your classes, their level, and other properties" },
-            { "sharequests",        SEC_PLAYER,     true, &HandleMultiClassShareQuests,              "Toggle between sharing or not sharing quests on the current class" },
-            { "sharereputation", SEC_PLAYER, true, &HandleMultiClassShareReputation, "Toggle between sharing or not sharing reputation on the current class" },
+            { "change",             HandleMultiClassChangeClass,        SEC_PLAYER, Console::No },
+            { "info",               HandleMultiClassInfo,               SEC_PLAYER, Console::No },
+            { "sharequests",        HandleMultiClassShareQuests,        SEC_PLAYER, Console::No },
+            { "sharereputation",    HandleMultiClassShareReputation,    SEC_PLAYER, Console::No },
         };
 
         static std::vector<ChatCommand> commandTable =
         {
-            { "class",       SEC_PLAYER,                             false, NULL,                      "", CommandTable },
+            { "class",  classCommandTable },
         };
         return commandTable;
     }
