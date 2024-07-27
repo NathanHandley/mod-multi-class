@@ -113,7 +113,7 @@ void MultiClassMod::CopyCharacterDataIntoModCharacterTable(Player* player, Chara
         transaction->Append("INSERT IGNORE INTO mod_multi_class_characters (guid, class, `level`, xp, leveltime, rest_bonus, resettalents_cost, resettalents_time, health, power1, power2, power3, power4, power5, power6, power7, talentGroupsCount, activeTalentGroup) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
             player->GetGUID().GetCounter(),
             player->getClass(),
-            player->getLevel(),
+            player->GetLevel(),
             player->GetUInt32Value(PLAYER_XP),
             fields[0].Get<uint32>(),                // leveltime
             finiteAlways(fields[1].Get<float>()),   // rest_bonus

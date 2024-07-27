@@ -34,18 +34,18 @@ public:
 
     std::vector<ChatCommand> GetCommands() const
     {
-        static std::vector<ChatCommand> CommandTable =
+        static std::vector<ChatCommand> classCommandTable =
         {
-            { "change",             SEC_PLAYER,     true, &HandleMultiClassChangeClass,             "Changes your class" },
-            { "info",               SEC_PLAYER,     true, &HandleMultiClassInfo,                    "Shows all your classes, their level, and other properties" },
-            { "sharequests",        SEC_PLAYER,     true, &HandleMultiClassShareQuests,             "Toggle between sharing or not sharing quests on the current class" },
-            { "sharereputation",        SEC_PLAYER,     true, &HandleMultiClassShareReputation,     "Toggle between sharing or not sharing reputation on the current class" },
-            { "resetmasterskills",  SEC_PLAYER,     true, &HandleMultiClassMasterSkillReset,        "Resets spent master tokens for a class" },
+            { "change",             HandleMultiClassChangeClass,        SEC_PLAYER, Console::No },
+            { "info",               HandleMultiClassInfo,               SEC_PLAYER, Console::No },
+            { "sharequests",        HandleMultiClassShareQuests,        SEC_PLAYER, Console::No },
+            { "sharereputation",    HandleMultiClassShareReputation,    SEC_PLAYER, Console::No },
+            { "resetmasterskills",  HandleMultiClassMasterSkillReset,   SEC_PLAYER, Console::No },
         };
 
         static std::vector<ChatCommand> commandTable =
         {
-            { "class",       SEC_PLAYER,                             false, NULL,                      "", CommandTable },
+            { "class",  classCommandTable },
         };
         return commandTable;
     }
