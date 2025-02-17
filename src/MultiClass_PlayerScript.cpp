@@ -34,7 +34,7 @@ public:
     // Note: Client Binary Changes are needed for the following to function:
     // - Rune abilities reactivating after rune depletion and recharge
     // - Show combo points on non-druid and non-rogue
-    Optional<bool> OnPlayerIsClass(Player const* player, Classes playerClass, ClassContext context)
+    Optional<bool> OnPlayerIsClass(Player const* player, Classes playerClass, ClassContext context) override
     {
         switch (context)
         {
@@ -79,13 +79,13 @@ public:
         return std::nullopt;
     }
 
-    bool OnPlayerHasActivePowerType(Player const* /*player*/, Powers /*power*/)
+    bool OnPlayerHasActivePowerType(Player const* /*player*/, Powers /*power*/) override
     {
         // Enable all powers for all classes
         return true;
     }
 
-    void OnBeforeGuardianInitStatsForLevel(Player* /*player*/, Guardian* guardian, CreatureTemplate const* /*cinfo*/, PetType& petType)
+    void OnPlayerBeforeGuardianInitStatsForLevel(Player* /*player*/, Guardian* guardian, CreatureTemplate const* /*cinfo*/, PetType& petType) override
     {
         // Determine the pet type based on guardian
         uint32 entry = guardian->GetEntry();
@@ -118,7 +118,7 @@ public:
             petType = HUNTER_PET;
     }
 
-    void OnLogin(Player* player)
+    void OnPlayerLogin(Player* player) override
     {
         if (MultiClass->ConfigEnabled == false)
             return;
@@ -135,7 +135,7 @@ public:
         }
     }
 
-    void OnBeforeLogout(Player* player)
+    void OnPlayerBeforeLogout(Player* player) override
     {
         // If a class change is in progress, update the item visuals
         PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
@@ -156,7 +156,7 @@ public:
         }
     }
 
-    void OnLogout(Player* player)
+    void OnPlayerLogout(Player* player) override
     {
         if (MultiClass->ConfigEnabled == false)
             return;
@@ -214,14 +214,14 @@ public:
         }
     }
 
-    void OnDelete(ObjectGuid guid, uint32 /*accountId*/)
+    void OnPlayerDelete(ObjectGuid guid, uint32 /*accountId*/) override
     {
         if (MultiClass->ConfigEnabled == false)
             return;
         MultiClass->PerformPlayerDelete(guid);        
     }
 
-    void OnLevelChanged(Player* player, uint8 /*oldLevel*/)
+    void OnPlayerLevelChanged(Player* player, uint8 /*oldLevel*/) override
     {
         if (MultiClass->ConfigEnabled == false)
             return;
@@ -232,7 +232,7 @@ public:
         }
     }
 
-    void OnLearnSpell(Player* player, uint32 spellID)
+    void OnPlayerLearnSpell(Player* player, uint32 spellID) override
     {
         if (MultiClass->ConfigEnabled == false)
             return;
@@ -244,7 +244,7 @@ public:
         }
     }
 
-    void OnForgotSpell(Player* player, uint32 spellID)
+    void OnPlayerForgotSpell(Player* player, uint32 spellID) override
     {
         if (MultiClass->ConfigEnabled == false)
             return;
