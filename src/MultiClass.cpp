@@ -803,7 +803,7 @@ class MultiClass_PlayerScript : public PlayerScript
 public:
     MultiClass_PlayerScript() : PlayerScript("MultiClass_PlayerScript") {}
 
-    void OnLogin(Player* player)
+    void OnPlayerLogin(Player* player) override
     {
         if (ConfigEnabled == false)
             return;
@@ -814,7 +814,7 @@ public:
         }	    
     }
 
-    void OnBeforeLogout(Player* player)
+    void OnPlayerBeforeLogout(Player* player) override
     {
         // If a class change is in progress, update the item visuals
         PlayerControllerData controllerData = MultiClass->GetPlayerControllerData(player);
@@ -835,7 +835,7 @@ public:
         }
     }
 
-    void OnLogout(Player* player)
+    void OnPlayerLogout(Player* player) override
     {
         if (ConfigEnabled == false)
             return;
@@ -893,7 +893,7 @@ public:
         }
     }
 
-    void OnDelete(ObjectGuid guid, uint32 /*accountId*/)
+    void OnPlayerDelete(ObjectGuid guid, uint32 /*accountId*/) override
     {
         if (ConfigEnabled == false)
             return;
